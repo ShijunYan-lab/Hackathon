@@ -101,6 +101,18 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
         return app.state.store.events(world_id, after_seq, limit, view == "debug")
 
+    @app.get("/v1/worlds/{world_id}/story")
+    def story(world_id: str, view: Literal["player", "debug"] = "player"):
+        if view == "debug" and not allow_debug:
+            raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
+        return app.state.store.story(world_id, debug=view == "debug")
+
+    @app.get("/v1/worlds/{world_id}/agents/{npc_id}/debug")
+    def agent_debug(world_id: str, npc_id: str):
+        if not allow_debug:
+            raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
+        return app.state.store.agent_debug(world_id, npc_id)
+
     return app
 
 

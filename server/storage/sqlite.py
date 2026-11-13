@@ -13,6 +13,7 @@ from server.generation.initial_world import initial_world
 from server.world.commands import WorldError, apply_checkpoint
 from server.world.combat import CombatRules, settle_hit, validate_hit
 from server.world.items import apply_item_command
+from server.storage import knowledge
 
 
 def encode(value):
@@ -66,6 +67,10 @@ class WorldStore:
                     PRIMARY KEY(world_id, attack_id, target_id)
                 );
             """)
+            connection.executescript(knowledge.SCHEMA)
+        with self.connection(write=True) as connection:
+            for row in connection.execute("SELECT world_id, body FROM events ORDER BY world_id, seq").fetchall():
+                knowledge.record_event(connection, row[0], Event.model_validate_json(row[1]))
 
     @contextmanager
     def connection(self, write=False):
@@ -110,6 +115,22 @@ class WorldStore:
     def append_event(connection, world_id, event):
         connection.execute("INSERT INTO events VALUES (?, ?, ?, ?)",
                            (world_id, event.event_seq, event.id, event.model_dump_json()))
+        knowledge.record_event(connection, world_id, event)
+
+    def story(self, world_id, debug=False):
+        with self.connection() as connection:
+            state = StateView.model_validate_json(self.world_row(connection, world_id)["state"])
+            return response("story", state, knowledge.story_view(connection, world_id,
+                            None if debug else state.player_id))
+
+    def agent_debug(self, world_id, npc_id):
+        with self.connection() as connection:
+            state = StateView.model_validate_json(self.world_row(connection, world_id)["state"])
+            if not any(actor.id == npc_id and actor.kind == "npc" for actor in state.actors):
+                raise WorldError("NPC_NOT_FOUND", "NPC 不存在。", 404)
+            return response("debug", state, {"memories": knowledge.memories(connection, world_id, npc_id),
+                "known_event_ids": [event.id for event in knowledge.known_events(connection, world_id, npc_id)],
+                "policy_history": [], "decision_history": []})
 
     def create(self, body: NewWorldRequest, region: dict) -> dict:
         with self.connection(write=True) as connection:
