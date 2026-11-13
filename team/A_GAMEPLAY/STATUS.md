@@ -28,3 +28,13 @@
 
 ## 下一步
 待填写。
+
+
+## 2026-11-13 A Starter V3 导入
+
+- 已添加：可运行测试场景源码、Walk/Run/Sprint/Attack/Hurt/Death/Dodge 动画、Shift 奔跑、Space 闪避、鼠标左键攻击。
+- 已添加：剑/斧两张独立透明像素贴图，武器持握和不同挥砍时长、测试换装。
+- 已对齐：命中输出与 `shared.protocol.HitPayload`；TASK_REPORT 输出与 `TaskReportPayload`。
+- 已明确：测试场行为为 MOCK，非 Agent 决策，C 的正式伤害/掉落/保存、D 正式地图/UI 尚待联调。
+- 静态检查见 `tests/test_a_module_assets.py`。Godot 引擎实际运行暂未验证。
+- 下一步：A 在 Windows Godot 4.5.2 F5/F6 测试并记录问题；D 接入正式地图；C 检查闪避期间 HIT 与装备 ID 一致性。

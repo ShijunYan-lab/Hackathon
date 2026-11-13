@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://tests/a_open_world_demo.tscn" id="1_open"]
+
+[node name="LegacyForestDemo" type="Node2D"]
+
+[node name="SingleOpenWorld" parent="." instance=ExtResource("1_open")]

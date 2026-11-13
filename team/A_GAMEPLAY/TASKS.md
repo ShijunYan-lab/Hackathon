@@ -26,7 +26,7 @@
 |---|---|---|---|
 | A01 | P0 | 在 game/tests 建占位测试场景；玩家 WASD 移动、碰撞、镜头 | 斜走不加速、不穿墙；不等待美术 |
 | A02 | P0 | 通用 Actor：玩家/NPC/怪物用同一种稳定 ID 和数据入口 | 给不同 ActorState 就能显示，无 npc 名字判断 |
-| A03 | P0 | J 普攻、K 闪避、受击、击退、攻击冷却和死亡表现 | 每次 attack_id 对同目标只上报一次命中 |
+| A03 | P0 | 鼠标左键普攻、Space 闪避、Shift 奔跑、受击、击退、攻击冷却和死亡表现 | 每次 attack_id 对同目标只上报一次命中 |
 | A04 | P0 | 按 INTEGRATION 的信号把命中交 D；用 C 返回血量更新 | 不在客户端再次扣服务器已扣的血 |
 | A05 | P0 | NPC/怪物待机、追击、普通攻击、逃跑；所有 NPC 可攻击 | 不需 LLM 每帧驱动；死亡不能交谈或行动 |
 | A06 | P0 | execute_task 支持 MOVE/ATTACK/FLEE 与完成/失败上报 | 人真正走到地点，不直接打印“任务完成” |
@@ -61,3 +61,13 @@ python -m tools.check_evaluation_contracts
 ## 交付时更新 STATUS.md
 记录完成项、修改文件、真实测试结果、未完成项和下一位同学需要怎样连接。
 交付实际代码，不只把设计文字再输出一遍。未测Windows/Godot/LLM必须明说。
+
+
+## A 模块 V3 已交付的原型与继续联调事项（2026-11-13）
+
+- `game/actors/`：Player/NPC/Actor 角色实体，玩家有 `idle/run/sprint/dodge/attack/hurt/death` 动画，剑斧采用独立 PNG。
+- `game/combat/`：剑弧和受击特效。
+- `game/tests/`：两张独立 MOCK 测试场景，按 F5/F6 体验。
+- 用鼠标左键攻击、Space 闪避、Shift 奔跑、数字 1/2 切换测试武器。
+- V3 将原始 A Starter 的旧 `COMBAT_HIT` / `REPORT_INTENT` 等接口改成 `HitPayload` / `TaskReportPayload`。接入真实服务仍需 D/C 确认闪避同步和装备 ID。
+- 详情阅读 `docs/A_MODULE_INTEGRATION.md`；真实 Godot 4.5.2 运行验证尚未完成，不把 MOCK 当作真实 Agent。

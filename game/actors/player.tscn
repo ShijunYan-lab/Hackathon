@@ -1,0 +1,35 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://actors/player.gd" id="1_player"]
+[ext_resource type="Texture2D" path="res://actors/assets/weapons/sword.png" id="2_sword"]
+
+[sub_resource type="CircleShape2D" id="shape"]
+radius = 8.0
+
+[node name="Player" type="CharacterBody2D"]
+script = ExtResource("1_player")
+entity_id = "player_01"
+display_name = "You"
+actor_kind = "player"
+max_hp = 100
+hp = 100
+sprite_skin = "knight"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("shape")
+
+[node name="Visual" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -5)
+texture_filter = 1
+
+[node name="WeaponPivot" type="Node2D" parent="."]
+position = Vector2(0, -6)
+z_index = 7
+
+[node name="WeaponVisual" type="Sprite2D" parent="WeaponPivot"]
+position = Vector2(0, -14)
+texture = ExtResource("2_sword")
+texture_filter = 1
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position_smoothing_enabled = false
