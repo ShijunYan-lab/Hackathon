@@ -13,11 +13,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from shared.protocol import CommandRequest, DialogueRequest, Envelope, NewWorldRequest
+from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
 from server.world.combat import CombatRules
 from server.world.agent_runtime import AgentGateway, AgentRuntime
+from server.world.advance import WorldTurns
+from server.world.director import DirectorConfig
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,7 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def create_app(db_path: str | Path | None = None, regions_path: str | Path | None = None,
                region_id: str | None = None, allow_debug: bool | None = None,
                combat_rules: CombatRules | None = None, clock=None,
-               dialogue_provider=None, plan_provider=None, agent_timeout_s=8) -> FastAPI:
+               dialogue_provider=None, plan_provider=None, agent_timeout_s=8,
+               director_provider=None, director_config=None) -> FastAPI:
     if allow_debug is None:
         allow_debug = os.environ.get("ALLOW_DEBUG", "false").lower() == "true"
     @asynccontextmanager
@@ -43,10 +46,13 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                                      combat_rules=rules, clock=clock)
         app.state.agents = AgentRuntime(app.state.store, AgentGateway(dialogue_provider, plan_provider,
                                                                     timeout_s=agent_timeout_s))
+        config = director_config or DirectorConfig.from_file(os.environ.get(
+            "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
+        app.state.turns = WorldTurns(app.state.agents, config, director_provider)
         yield
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
-                  description="步骤 04：世界、位置、攻击、死亡与事件持久化。当前模型模式 fallback。")
+                  description="步骤 01—08：世界、战斗、物品、记忆、NPC 任务与世界导演。未接模型时使用 fallback。")
 
     async def error(request, code, message, status):
         request_id = "unknown"
@@ -80,11 +86,13 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
 
     @app.get("/health")
     def health():
+        modes = {"npc": app.state.agents.gateway.last_mode, "director": app.state.turns.last_mode}
+        mode = "live" if "live" in modes.values() else "fallback"
         return Envelope[dict](request_id="health", ok=True, data={
-            "status": "ok", "mode": "fallback", "api_version": "v1",
+            "status": "ok", "mode": mode, "component_modes": modes, "api_version": "v1",
             "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup",
-                             "pickup", "equip", "give"],
-            "model_connected": False, "map_fixture": app.state.map_fixture,
+                             "pickup", "equip", "give", "story", "dialogue", "task_report", "advance", "director"],
+            "model_connected": mode == "live", "map_fixture": app.state.map_fixture,
         })
 
     @app.post("/v1/worlds")
@@ -103,6 +111,16 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post("/v1/worlds/{world_id}/dialogue")
     async def dialogue(world_id: str, body: DialogueRequest):
         return await app.state.agents.dialogue(world_id, body)
+
+    @app.post("/v1/worlds/{world_id}/advance")
+    async def advance(world_id: str, body: AdvanceRequest):
+        return await app.state.turns.advance(world_id, body)
+
+    @app.get("/v1/worlds/{world_id}/director/debug")
+    def director_debug(world_id: str):
+        if not allow_debug:
+            raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
+        return app.state.turns.debug(world_id)
 
     @app.get("/v1/worlds/{world_id}/events")
     def events(world_id: str, after_seq: int = Query(default=0, ge=0),

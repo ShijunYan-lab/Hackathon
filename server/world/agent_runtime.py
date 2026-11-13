@@ -37,7 +37,10 @@ class AgentGateway:
         self.dialogue_provider = dialogue
         self.plan_provider = plan
         self.timeout_s = timeout_s
+        if not 0 < timeout_s <= 8:
+            raise ValueError("Agent timeout must be greater than zero and at most eight seconds")
         self.semaphore = asyncio.Semaphore(2)
+        self.last_mode = "fallback"
 
     async def call(self, kind, context, argument):
         provider = getattr(self, kind + "_provider")
@@ -45,14 +48,18 @@ class AgentGateway:
             try:
                 provider = getattr(importlib.import_module("server.agents.service"), kind)
             except (ImportError, AttributeError):
+                self.last_mode = "fallback"
                 return AgentDecision(reply="当前模型未接入，我会暂时等待。", intent={"action": "WAIT"}), "fallback"
         async def invoke():
             async with self.semaphore:
                 raw = await provider(context.model_copy(deep=True), argument)
                 return AgentDecision.model_validate(raw.model_dump() if isinstance(raw, AgentDecision) else raw)
         try:
-            return await asyncio.wait_for(invoke(), timeout=self.timeout_s), "live"
+            decision = await asyncio.wait_for(invoke(), timeout=self.timeout_s)
+            self.last_mode = "live"
+            return decision, "live"
         except Exception:
+            self.last_mode = "fallback"
             return AgentDecision(reply="暂时无法作出新决定，我会等待。", intent={"action": "WAIT"}), "fallback"
 
 
