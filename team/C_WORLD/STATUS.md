@@ -3,7 +3,9 @@
 认领人：C 岗已认领，姓名待填写
 分支：feature/c-world
 最后更新：2026-11-13（UTC+8）
-当前状态：已从本地 main 的 `bc5326f` 建立 C 岗分支；已完成世界导演接口、配置与调用校验切片；完整世界服务待实现。
+当前状态：C 分支已完成世界导演接口节点和可启动后端小切片；SQLite 世界、事件与位置保存已通过测试及本机 HTTP 验证。完整战斗、Agent 执行与评审待实现。
+
+交付约定：用户已授权每完成一个节点及时测试、启动验证、更新记录、commit 并 push 到 feature/c-world。2026-11-13 首次 push 因 GitHub 账号权限返回 403，按用户指定登录 qirongbo 并配置当前仓库后，导演节点 da4a55a 已成功推送。当前分支跟踪 origin/feature/c-world。
 
 ## 本轮目标
 
@@ -17,7 +19,7 @@
 - [x] WorldDirector 可注入模型接口、世界记忆与剧情线索 DTO、单地图地点配置、触发/超时/引用校验和独立测试
 - [x] 创建并切换到本地 `feature/c-world`，核对 C 任务卡、A/B/D 交接、基础 v1 和 evaluation-v1 合同及现有样例
 - [x] 在本机复跑脚手架检查
-- [ ] 第一轮小交付完成
+- [x] 第一轮小交付完成（真实入口、创建世界、state、CHECKPOINT、事件和持久化）
 - [ ] 已按TASKS完成本岗P0
 - [ ] 与相邻模块实际联调
 - [ ] 已支持评审两次运行相关职责
@@ -29,6 +31,8 @@
 按用户要求，其他岗位由后续同学组装对接。本轮新增 `server/world/director.py`、`server/world/director_config.json`、`docs/WORLD_DIRECTOR_CONTRACT.md`、`tests/test_world_director.py`。接口说明包含输入输出、模型异常语义、配置位置、事务接入条件和已有 HTTP 路由衔接。世界记忆、剧情线索的持久化及建议执行器待完成。
 
 首个实现切片拟新增 `server/main.py`、`server/api/worlds.py`、`server/storage/sqlite.py`、`server/generation/initial_world.py`、`server/world/commands.py` 和 `tests/test_world.py`。先交真实入口、创建世界、读取状态、写入事件和一条真实 `CHECKPOINT`，可独立跑通。
+
+实际首个服务切片新增 `server/main.py`、`server/storage/sqlite.py`、`server/generation/initial_world.py`、`server/world/commands.py`、`tests/test_world.py`、`server/api/smoke.py` 和 `docs/BACKEND_QUICKSTART.md`。当前五个路由直接在 main.py 组装。导演节点本地提交 da4a55a。
 
 ## 实际运行的测试与结果
 
@@ -45,6 +49,11 @@ $backendCheckPython = 'C:/ProgramData/anaconda3/envs/pytorch/python.exe'
 - 基础协议 9 份 JSON 样例通过，评审协议 6 份 JSON 样例通过。
 - 本轮在上述环境复跑全部测试，45 项通过（含新增 11 项世界导演用例）；基础 9 份和评审 6 份样例检查通过，git diff --check 通过。新测试使用合成 provider，覆盖超时、缺失 provider、评审冻结、触发周期、非法来源/目标、未启用执行器以及未来记忆引用。
 - 待验证 Python 3.11 固定环境、真实 SQLite 后端、Godot 联调、真实 LLM、完整两轮运输及第二台 Windows 冷启动。当前地图标记为 `fixture_only`，正式路线和碰撞仍待 D 交付。
+- 服务节点全量测试 52 项通过，新增覆盖创建、确定性初始化、重启读取、持久化去重、并发重复请求、事务失败回滚、非法坐标和统一错误外壳。协议 9+6 份样例通过。临时服务使用现有 weclone 环境（Python 3.10.14 / FastAPI 0.112.0 / Pydantic 2.8.2 / Uvicorn 0.30.6），实际 HTTP smoke 通过，创建世界、移动一格、重放请求、读取两个真实事件。以上补充真实 SQLite 验证，Godot/LLM/两轮评审/固定目标环境仍待验收。
+
+服务入口 http://127.0.0.1:8765/docs，能力与模式见 /health。数据库 runtime/worlds.sqlite3。复现运行 `python -m server.api.smoke`。当前地图采用现有 market 占位平面，正式单地图可由 D 通过地图配置接入。运行说明见 docs/BACKEND_QUICKSTART.md。
+
+实际重启后再次读取首次演示世界 world_a7a5702207904ce8872862debb59ccee，版本仍为 1、玩家位置仍为 (9.5, 8.5)。新启动实例的 smoke 再次通过，/docs 返回 HTTP 200。
 
 ## 开发顺序与可验收产物
 
@@ -87,4 +96,4 @@ $backendCheckPython = 'C:/ProgramData/anaconda3/envs/pytorch/python.exe'
 
 ## 下一步
 
-继续实现第 1 步，将世界事件、WorldMemory 与 StoryThread 的持久化纳入世界服务底座，再接导演建议执行。地图位置由配置注入，模型由 callable 注入；后续组装者按 docs/WORLD_DIRECTOR_CONTRACT.md 接入。单地图区域映射和 B/C 输入输出语义记录为交接项，C 可先用清楚标注的测试替身开发本岗逻辑。验收记录写入实际 commit、seed、命令、响应和失败复现。
+后续节点补充真实 HIT、死亡与物品归属，并将 WorldMemory 与 StoryThread 持久化接入已运行的世界服务，再接导演建议执行。地图位置由配置注入，模型由 callable 注入；后续组装者按 docs/WORLD_DIRECTOR_CONTRACT.md 接入。单地图区域映射和 B/C 输入输出语义记录为交接项，C 可先用清楚标注的测试替身开发本岗逻辑。每节点完成测试和启动验证后及时提交、推送并报告 commit。
