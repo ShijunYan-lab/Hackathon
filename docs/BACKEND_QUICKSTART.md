@@ -1,6 +1,6 @@
 # C 后端当前交付与操作
 
-世界导演接口位于 `server/world/director.py`。可启动的服务入口为 `server/main.py`，当前实现创建世界、状态读取、位置保存、事件查询与 SQLite 持久化。默认模型模式 fallback。地图使用 shared/regions.json 中 market 的占位平面，后续由 D 提供正式单地图。
+世界导演接口位于 `server/world/director.py`。可启动的服务入口为 `server/main.py`，当前实现创建世界、状态读取、位置保存、HIT 伤害、死亡清理、事件查询与 SQLite 持久化。默认模型模式 fallback。地图使用 shared/regions.json 中 market 的占位平面，后续由 D 提供正式单地图。固定 01—15 进度表位于 team/C_WORLD/STATUS.md 顶部。
 
 ## 启动与查看
 
@@ -26,7 +26,9 @@ POST /v1/worlds 输入如下。每次新操作使用新的 request_id，重试�
 python -m server.api.smoke
 ```
 
-默认数据库在仓库 `runtime/worlds.sqlite3`，被 Git 忽略。重启服务后，用原 world_id 可以读取世界。WORLD_DB_PATH 可指定数据库，WORLD_REGION_ID 可指定地图配置里的区域 ID。单个世界保留创建时的地图数据。当前仅 CHECKPOINT 命令可执行，其他动作返回 ACTION_NOT_SUPPORTED。真实战斗、对话、世界导演的执行与持久化、评审以及 Godot 展示待后续节点。
+默认数据库在仓库 `runtime/worlds.sqlite3`，被 Git 忽略。重启服务后，用原 world_id 可以读取世界。WORLD_DB_PATH 可指定数据库，WORLD_REGION_ID 可指定地图配置里的区域 ID。单个世界保留创建时的地图数据。当前 CHECKPOINT 和 HIT 命令可执行，其他动作返回 ACTION_NOT_SUPPORTED。对话、世界导演的执行与持久化、评审以及 Godot 展示待后续节点。
+
+步骤 04 可运行 `python -m server.api.combat_smoke`，它创建新世界、报告命中直到一个 NPC 死亡、检查重复命中和原武器掉落，并打印可访问的状态及事件地址。该脚本使用合成碰撞报告验证真实 HTTP 后端。规则和 A/D 接入方法见 docs/COMBAT_API.md。
 
 ## 当前机器的已用环境
 

@@ -16,12 +16,14 @@ from starlette.exceptions import HTTPException
 from shared.protocol import CommandRequest, Envelope, NewWorldRequest
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
+from server.world.combat import CombatRules
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def create_app(db_path: str | Path | None = None, regions_path: str | Path | None = None,
-               region_id: str | None = None, allow_debug: bool = False) -> FastAPI:
+               region_id: str | None = None, allow_debug: bool = False,
+               combat_rules: CombatRules | None = None, clock=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         document = json.loads(Path(regions_path or ROOT / "shared/regions.json").read_text(encoding="utf-8"))
@@ -31,11 +33,14 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             raise ValueError("Configured WORLD_REGION_ID is absent from the map description")
         app.state.region = region
         app.state.map_fixture = document.get("fixture_only", False)
-        app.state.store = WorldStore(db_path or os.environ.get("WORLD_DB_PATH", str(ROOT / "runtime/worlds.sqlite3")))
+        rules_path = os.environ.get("COMBAT_RULES_PATH", str(ROOT / "server/world/combat_rules.json"))
+        rules = combat_rules or CombatRules.from_file(rules_path)
+        app.state.store = WorldStore(db_path or os.environ.get("WORLD_DB_PATH", str(ROOT / "runtime/worlds.sqlite3")),
+                                     combat_rules=rules, clock=clock)
         yield
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
-                  description="节点 1：真实 SQLite 世界、事件与位置保存。当前模型模式 fallback。")
+                  description="步骤 04：世界、位置、攻击、死亡与事件持久化。当前模型模式 fallback。")
 
     async def error(request, code, message, status):
         request_id = "unknown"
@@ -71,7 +76,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     def health():
         return Envelope[dict](request_id="health", ok=True, data={
             "status": "ok", "mode": "fallback", "api_version": "v1",
-            "capabilities": ["persistent_worlds", "checkpoint", "events"],
+            "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup"],
             "model_connected": False, "map_fixture": app.state.map_fixture,
         })
 

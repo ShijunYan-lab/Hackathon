@@ -48,9 +48,17 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
     weapon = ItemState(id=item_id, name="铁剑", base_type="sword", quality="common",
                        material_id="iron", owner_id=player_id, origin_event_ids=[event_id],
                        stats=ItemStats(damage=rng.randint(4, 8), cooldown_s=.5, armor=0))
+    weapons = [weapon]
+    for index, actor in enumerate(actors[1:], start=1):
+        npc_weapon = ItemState(id=identifier("item", index), name="随身铁剑", base_type="sword",
+                               quality="common", material_id="iron", owner_id=actor.id,
+                               origin_event_ids=[event_id],
+                               stats=ItemStats(damage=4, cooldown_s=.6, armor=0))
+        actor.equipped_item_id = npc_weapon.id
+        weapons.append(npc_weapon)
     state = StateView(world_id=world_id, seed=seed, tick=0, world_version=0,
                       player_id=player_id, current_region_id=region["id"], actors=actors,
-                      items=[weapon], organizations=organizations, relations=[], tasks=[], sites=[])
+                      items=weapons, organizations=organizations, relations=[], tasks=[], sites=[])
     event = Event(id=event_id, event_seq=1, tick=0, type="world_created",
                   actor_id=player_id, facts={"seed": seed}, caused_by=[], witness_ids=[player_id])
     return state, event, rng.getstate()
