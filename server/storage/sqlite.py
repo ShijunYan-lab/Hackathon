@@ -14,6 +14,7 @@ from server.world.commands import WorldError, apply_checkpoint
 from server.world.combat import CombatRules, settle_hit, validate_hit
 from server.world.items import apply_item_command
 from server.storage import knowledge
+from server.world import tasks
 
 
 def encode(value):
@@ -68,6 +69,7 @@ class WorldStore:
                 );
             """)
             connection.executescript(knowledge.SCHEMA)
+            connection.executescript(tasks.SCHEMA)
         with self.connection(write=True) as connection:
             for row in connection.execute("SELECT world_id, body FROM events ORDER BY world_id, seq").fetchall():
                 knowledge.record_event(connection, row[0], Event.model_validate_json(row[1]))
@@ -130,7 +132,14 @@ class WorldStore:
                 raise WorldError("NPC_NOT_FOUND", "NPC 不存在。", 404)
             return response("debug", state, {"memories": knowledge.memories(connection, world_id, npc_id),
                 "known_event_ids": [event.id for event in knowledge.known_events(connection, world_id, npc_id)],
-                "policy_history": [], "decision_history": []})
+                "policy_history": self.policy_history(connection, world_id, npc_id),
+                "decision_history": [json.loads(row[0]) for row in connection.execute(
+                    "SELECT body FROM decisions WHERE world_id=? AND npc_id=? ORDER BY rowid", (world_id, npc_id))]})
+
+    @staticmethod
+    def policy_history(connection, world_id, npc_id):
+        row = connection.execute("SELECT body FROM npc_profiles WHERE world_id=? AND npc_id=?", (world_id, npc_id)).fetchone()
+        return json.loads(row[0])["history"] if row else []
 
     def create(self, body: NewWorldRequest, region: dict) -> dict:
         with self.connection(write=True) as connection:
@@ -181,8 +190,16 @@ class WorldStore:
                 events = apply_item_command(state, body.kind, body.payload, seq)
                 connection.execute("UPDATE attacks SET valid=0 WHERE world_id=? AND attacker_id=?",
                                    (world_id, body.payload["actor_id"]))
+            elif body.kind == "TASK_REPORT":
+                events = tasks.apply_task_report(connection, state, body.payload, json.loads(row["region"]), seq)
             else:
                 raise WorldError("ACTION_NOT_SUPPORTED", "该动作尚未实现。")
+            if not events:
+                result = response(body.request_id, state, {
+                    "command_result": {"status": "already_applied", "applied": False},
+                    "events": [], "state": state.model_dump(mode="json")})
+                self.remember(connection, scope, body, result)
+                return result
             state.world_version += 1
             state = StateView.model_validate(state.model_dump())
             connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))

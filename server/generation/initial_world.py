@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 from uuid import NAMESPACE_URL, uuid5
 
-from shared.protocol import ActorState, Event, ItemState, ItemStats, OrganizationView, StateView, Tile
+from shared.protocol import ActorState, Event, ItemState, ItemStats, OrganizationView, SiteView, StateView, Tile
 from server.generation.equipment import generate_weapon
 
 
@@ -55,9 +55,14 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
         actor.equipped_item_id = npc_weapon.id
         actor.armor = npc_weapon.stats.armor
         weapons.append(npc_weapon)
+    sites = [SiteView.model_validate(site) for site in region.get("sites", [])]
+    if not sites:
+        herb_tile = min(tiles, key=lambda tile: abs(tile.x - spawn.x - 3) + abs(tile.y - spawn.y))
+        sites = [SiteView(id=identifier("site", 0), kind="herb", region_id=region["id"],
+                          tile=herb_tile, remaining=5)]
     state = StateView(world_id=world_id, seed=seed, tick=0, world_version=0,
                       player_id=player_id, current_region_id=region["id"], actors=actors,
-                      items=weapons, organizations=organizations, relations=[], tasks=[], sites=[])
+                      items=weapons, organizations=organizations, relations=[], tasks=[], sites=sites)
     event = Event(id=event_id, event_seq=1, tick=0, type="world_created",
                   actor_id=player_id, facts={"seed": seed}, caused_by=[], witness_ids=[player_id])
     return state, event, rng.getstate()

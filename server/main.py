@@ -13,17 +13,21 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from shared.protocol import CommandRequest, Envelope, NewWorldRequest
+from shared.protocol import CommandRequest, DialogueRequest, Envelope, NewWorldRequest
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
 from server.world.combat import CombatRules
+from server.world.agent_runtime import AgentGateway, AgentRuntime
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def create_app(db_path: str | Path | None = None, regions_path: str | Path | None = None,
-               region_id: str | None = None, allow_debug: bool = False,
-               combat_rules: CombatRules | None = None, clock=None) -> FastAPI:
+               region_id: str | None = None, allow_debug: bool | None = None,
+               combat_rules: CombatRules | None = None, clock=None,
+               dialogue_provider=None, plan_provider=None, agent_timeout_s=8) -> FastAPI:
+    if allow_debug is None:
+        allow_debug = os.environ.get("ALLOW_DEBUG", "false").lower() == "true"
     @asynccontextmanager
     async def lifespan(app):
         document = json.loads(Path(regions_path or ROOT / "shared/regions.json").read_text(encoding="utf-8"))
@@ -37,6 +41,8 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         rules = combat_rules or CombatRules.from_file(rules_path)
         app.state.store = WorldStore(db_path or os.environ.get("WORLD_DB_PATH", str(ROOT / "runtime/worlds.sqlite3")),
                                      combat_rules=rules, clock=clock)
+        app.state.agents = AgentRuntime(app.state.store, AgentGateway(dialogue_provider, plan_provider,
+                                                                    timeout_s=agent_timeout_s))
         yield
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
@@ -93,6 +99,10 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post("/v1/worlds/{world_id}/commands")
     def commands(world_id: str, body: CommandRequest):
         return app.state.store.command(world_id, body)
+
+    @app.post("/v1/worlds/{world_id}/dialogue")
+    async def dialogue(world_id: str, body: DialogueRequest):
+        return await app.state.agents.dialogue(world_id, body)
 
     @app.get("/v1/worlds/{world_id}/events")
     def events(world_id: str, after_seq: int = Query(default=0, ge=0),
