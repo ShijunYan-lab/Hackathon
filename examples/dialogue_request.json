@@ -1,0 +1,7 @@
+{
+  "api_version": "v1",
+  "request_id": "req_dialogue_01",
+  "expected_world_version": 0,
+  "npc_id": "npc_02",
+  "text": "Will you investigate the northern road?"
+}

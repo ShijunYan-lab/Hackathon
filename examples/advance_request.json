@@ -1,0 +1,7 @@
+{
+  "api_version": "v1",
+  "request_id": "req_advance_01",
+  "expected_world_version": 0,
+  "reason": "idle_timer",
+  "trigger_event_ids": []
+}

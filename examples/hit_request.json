@@ -1,0 +1,21 @@
+{
+  "api_version": "v1",
+  "request_id": "req_hit_01",
+  "expected_world_version": 0,
+  "kind": "HIT",
+  "payload": {
+    "attack_id": "attack_009",
+    "attacker_id": "player_01",
+    "target_id": "npc_02",
+    "weapon_id": "item_01",
+    "region_id": "market",
+    "attacker_tile": {
+      "x": 8.5,
+      "y": 8.5
+    },
+    "target_tile": {
+      "x": 9.5,
+      "y": 8.5
+    }
+  }
+}

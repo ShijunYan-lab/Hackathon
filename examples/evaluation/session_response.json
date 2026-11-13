@@ -1,0 +1,27 @@
+{
+  "api_version": "v1",
+  "request_id": "req_example",
+  "ok": true,
+  "world_id": null,
+  "world_version": null,
+  "error": null,
+  "data": {
+    "session": {
+      "evaluation_id": "eval_example",
+      "evaluation_version": 0,
+      "scenario_id": "transport_v1",
+      "seed": 20261113,
+      "scenario_hash": "MOCK_NOT_A_MEASURED_SCENARIO",
+      "snapshot_id": "snapshot_example",
+      "learner_id": "npc_example",
+      "baseline_profile_version": 0,
+      "active_profile_version": 0,
+      "status": "ready",
+      "active_world_id": null,
+      "run_ids": [],
+      "mode": "mock"
+    },
+    "run": null,
+    "state": null
+  }
+}

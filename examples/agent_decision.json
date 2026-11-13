@@ -1,0 +1,24 @@
+{
+  "reply": "I will inspect the road before shipping again.",
+  "memory_proposals": [
+    {
+      "statement": "The traveler reported danger on the road.",
+      "source_type": "report",
+      "source_event_ids": [
+        "evt_speech_01"
+      ],
+      "confidence": 0.4,
+      "status": "unverified"
+    }
+  ],
+  "intent": {
+    "action": "MOVE",
+    "target_id": "site_north_road",
+    "params": {}
+  },
+  "policy_patch": {},
+  "evidence_memory_ids": [
+    "mem_previous_loss"
+  ],
+  "reason_summary": "A previous loss and the new report justify an inspection."
+}

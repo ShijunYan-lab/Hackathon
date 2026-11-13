@@ -1,0 +1,13 @@
+{
+  "api_version": "v1",
+  "request_id": "req_conflict_example",
+  "ok": false,
+  "world_id": "world_example",
+  "world_version": 0,
+  "data": null,
+  "error": {
+    "code": "VERSION_CONFLICT",
+    "message": "Refresh world state first.",
+    "retryable": true
+  }
+}

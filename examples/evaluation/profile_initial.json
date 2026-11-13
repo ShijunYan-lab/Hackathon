@@ -1,0 +1,13 @@
+{
+  "profile_id": "profile_example",
+  "learner_id": "npc_example",
+  "version": 0,
+  "context_key": "greenwood_delivery",
+  "alpha": 0.8,
+  "values": {
+    "direct": 0.6,
+    "escort": 0.5
+  },
+  "memories": [],
+  "retrieval_epoch": 0
+}

@@ -1,0 +1,61 @@
+# Local secrets. Keep the empty configuration template.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Godot-generated caches and imported translations.
+.godot/
+*.translation
+# DO NOT ignore .gd.uid, .tscn, .tres, project.godot, or source assets.
+
+# Python environments and generated caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Local world state, private dialogue, measurements and output.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+logs/
+saves/
+/runtime/
+/build/
+/dist/
+/release/builds/
+/release/recordings/
+
+# Do not commit compiled programs, installers or recordings.
+*.exe
+*.dll
+*.pck
+*.zip
+*.7z
+*.mp4
+*.mov
+*.mkv
+
+# Machine-specific editor and OS state.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.tmp
+~$*
+
+/Hackathon/

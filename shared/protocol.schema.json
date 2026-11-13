@@ -1,0 +1,1821 @@
+{
+  "NewWorldRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "seed": {
+        "maximum": 2147483647,
+        "minimum": 0,
+        "title": "Seed",
+        "type": "integer"
+      },
+      "player_name": {
+        "maxLength": 30,
+        "minLength": 1,
+        "title": "Player Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "seed",
+      "player_name"
+    ],
+    "title": "NewWorldRequest",
+    "type": "object"
+  },
+  "DialogueRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "npc_id": {
+        "title": "Npc Id",
+        "type": "string"
+      },
+      "text": {
+        "maxLength": 500,
+        "minLength": 1,
+        "title": "Text",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "npc_id",
+      "text"
+    ],
+    "title": "DialogueRequest",
+    "type": "object"
+  },
+  "CommandRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "kind": {
+        "enum": [
+          "CHECKPOINT",
+          "HIT",
+          "PICKUP",
+          "EQUIP",
+          "GIVE",
+          "ACCEPT_OFFER",
+          "CHANGE_REGION",
+          "TASK_REPORT",
+          "JOIN_ORG",
+          "LEAVE_ORG"
+        ],
+        "title": "Kind",
+        "type": "string"
+      },
+      "payload": {
+        "additionalProperties": true,
+        "title": "Payload",
+        "type": "object"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "kind",
+      "payload"
+    ],
+    "title": "CommandRequest",
+    "type": "object"
+  },
+  "AdvanceRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "reason": {
+        "enum": [
+          "idle_timer",
+          "major_event",
+          "rest",
+          "debug_step"
+        ],
+        "title": "Reason",
+        "type": "string"
+      },
+      "trigger_event_ids": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Trigger Event Ids",
+        "type": "array"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "reason"
+    ],
+    "title": "AdvanceRequest",
+    "type": "object"
+  },
+  "SaveRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "label": {
+        "maxLength": 80,
+        "minLength": 1,
+        "title": "Label",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "label"
+    ],
+    "title": "SaveRequest",
+    "type": "object"
+  },
+  "LoadRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id"
+    ],
+    "title": "LoadRequest",
+    "type": "object"
+  },
+  "StateView": {
+    "$defs": {
+      "ActorState": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "player",
+              "npc",
+              "monster"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "alive": {
+            "title": "Alive",
+            "type": "boolean"
+          },
+          "hp": {
+            "minimum": 0,
+            "title": "Hp",
+            "type": "integer"
+          },
+          "max_hp": {
+            "exclusiveMinimum": 0,
+            "title": "Max Hp",
+            "type": "integer"
+          },
+          "armor": {
+            "minimum": 0,
+            "title": "Armor",
+            "type": "integer"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "tile": {
+            "$ref": "#/$defs/Tile"
+          },
+          "appearance_key": {
+            "title": "Appearance Key",
+            "type": "string"
+          },
+          "org_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Org Ids",
+            "type": "array"
+          },
+          "equipped_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Equipped Item Id"
+          },
+          "behavior": {
+            "default": "idle",
+            "enum": [
+              "idle",
+              "moving",
+              "attacking",
+              "fleeing",
+              "dead"
+            ],
+            "title": "Behavior",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "alive",
+          "hp",
+          "max_hp",
+          "armor",
+          "region_id",
+          "tile",
+          "appearance_key"
+        ],
+        "title": "ActorState",
+        "type": "object"
+      },
+      "ItemState": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "base_type": {
+            "enum": [
+              "sword",
+              "axe",
+              "material",
+              "consumable"
+            ],
+            "title": "Base Type",
+            "type": "string"
+          },
+          "quality": {
+            "enum": [
+              "common",
+              "uncommon",
+              "rare"
+            ],
+            "title": "Quality",
+            "type": "string"
+          },
+          "material_id": {
+            "title": "Material Id",
+            "type": "string"
+          },
+          "affixes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Affixes",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/$defs/ItemStats"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Owner Id"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region Id"
+          },
+          "tile": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Tile"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "origin_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Origin Event Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "base_type",
+          "quality",
+          "material_id",
+          "stats"
+        ],
+        "title": "ItemState",
+        "type": "object"
+      },
+      "ItemStats": {
+        "additionalProperties": false,
+        "properties": {
+          "damage": {
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Damage",
+            "type": "integer"
+          },
+          "cooldown_s": {
+            "exclusiveMinimum": 0,
+            "maximum": 10,
+            "title": "Cooldown S",
+            "type": "number"
+          },
+          "armor": {
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Armor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "damage",
+          "cooldown_s",
+          "armor"
+        ],
+        "title": "ItemStats",
+        "type": "object"
+      },
+      "OrganizationView": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "function_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Function Tags",
+            "type": "array"
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Member Ids",
+            "type": "array"
+          },
+          "representative_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Representative Id"
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Resources",
+            "type": "object"
+          },
+          "status": {
+            "default": "active",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "function_tags",
+          "member_ids",
+          "representative_id",
+          "resources"
+        ],
+        "title": "OrganizationView",
+        "type": "object"
+      },
+      "RelationView": {
+        "additionalProperties": false,
+        "properties": {
+          "from_org_id": {
+            "title": "From Org Id",
+            "type": "string"
+          },
+          "to_org_id": {
+            "title": "To Org Id",
+            "type": "string"
+          },
+          "stance": {
+            "enum": [
+              "neutral",
+              "trade",
+              "allied",
+              "hostile"
+            ],
+            "title": "Stance",
+            "type": "string"
+          },
+          "trust": {
+            "maximum": 100,
+            "minimum": -100,
+            "title": "Trust",
+            "type": "integer"
+          },
+          "source_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Event Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "from_org_id",
+          "to_org_id",
+          "stance",
+          "trust",
+          "source_event_ids"
+        ],
+        "title": "RelationView",
+        "type": "object"
+      },
+      "SiteView": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "tile": {
+            "$ref": "#/$defs/Tile"
+          },
+          "remaining": {
+            "minimum": 0,
+            "title": "Remaining",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "region_id",
+          "tile",
+          "remaining"
+        ],
+        "title": "SiteView",
+        "type": "object"
+      },
+      "Task": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Id"
+          },
+          "target_region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Region Id"
+          },
+          "target_tile": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Tile"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "started_tick": {
+            "minimum": 0,
+            "title": "Started Tick",
+            "type": "integer"
+          },
+          "source_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Event Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "actor_id",
+          "kind",
+          "status",
+          "started_tick",
+          "source_event_ids"
+        ],
+        "title": "Task",
+        "type": "object"
+      },
+      "Tile": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "minimum": 0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "minimum": 0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "Tile",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "world_id": {
+        "title": "World Id",
+        "type": "string"
+      },
+      "seed": {
+        "title": "Seed",
+        "type": "integer"
+      },
+      "tick": {
+        "minimum": 0,
+        "title": "Tick",
+        "type": "integer"
+      },
+      "world_version": {
+        "minimum": 0,
+        "title": "World Version",
+        "type": "integer"
+      },
+      "player_id": {
+        "title": "Player Id",
+        "type": "string"
+      },
+      "current_region_id": {
+        "title": "Current Region Id",
+        "type": "string"
+      },
+      "actors": {
+        "items": {
+          "$ref": "#/$defs/ActorState"
+        },
+        "title": "Actors",
+        "type": "array"
+      },
+      "items": {
+        "items": {
+          "$ref": "#/$defs/ItemState"
+        },
+        "title": "Items",
+        "type": "array"
+      },
+      "organizations": {
+        "items": {
+          "$ref": "#/$defs/OrganizationView"
+        },
+        "title": "Organizations",
+        "type": "array"
+      },
+      "relations": {
+        "items": {
+          "$ref": "#/$defs/RelationView"
+        },
+        "title": "Relations",
+        "type": "array"
+      },
+      "tasks": {
+        "items": {
+          "$ref": "#/$defs/Task"
+        },
+        "title": "Tasks",
+        "type": "array"
+      },
+      "sites": {
+        "items": {
+          "$ref": "#/$defs/SiteView"
+        },
+        "title": "Sites",
+        "type": "array"
+      }
+    },
+    "required": [
+      "world_id",
+      "seed",
+      "tick",
+      "world_version",
+      "player_id",
+      "current_region_id",
+      "actors",
+      "items",
+      "organizations",
+      "relations",
+      "tasks",
+      "sites"
+    ],
+    "title": "StateView",
+    "type": "object"
+  },
+  "AgentDecision": {
+    "$defs": {
+      "Intent": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "WAIT",
+              "MOVE",
+              "GATHER",
+              "TRANSFER",
+              "SHARE_INFO",
+              "PROPOSE_RELATION",
+              "RESPOND_PROPOSAL",
+              "ATTACK",
+              "FLEE",
+              "CRAFT",
+              "JOIN_ORG",
+              "LEAVE_ORG"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Id"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "Intent",
+        "type": "object"
+      },
+      "MemoryProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "statement": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Statement",
+            "type": "string"
+          },
+          "source_type": {
+            "enum": [
+              "observation",
+              "report",
+              "inference"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "source_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Source Event Ids",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "unverified",
+              "supported",
+              "contradicted"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement",
+          "source_type",
+          "source_event_ids",
+          "confidence",
+          "status"
+        ],
+        "title": "MemoryProposal",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "reply": {
+        "default": "",
+        "maxLength": 500,
+        "title": "Reply",
+        "type": "string"
+      },
+      "memory_proposals": {
+        "items": {
+          "$ref": "#/$defs/MemoryProposal"
+        },
+        "title": "Memory Proposals",
+        "type": "array"
+      },
+      "intent": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Intent"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "policy_patch": {
+        "additionalProperties": {
+          "type": "number"
+        },
+        "title": "Policy Patch",
+        "type": "object"
+      },
+      "evidence_memory_ids": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Evidence Memory Ids",
+        "type": "array"
+      },
+      "reason_summary": {
+        "default": "",
+        "maxLength": 160,
+        "title": "Reason Summary",
+        "type": "string"
+      }
+    },
+    "title": "AgentDecision",
+    "type": "object"
+  },
+  "AgentContext": {
+    "$defs": {
+      "Event": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "event_seq": {
+            "minimum": 0,
+            "title": "Event Seq",
+            "type": "integer"
+          },
+          "tick": {
+            "minimum": 0,
+            "title": "Tick",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Actor Id"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Id"
+          },
+          "facts": {
+            "additionalProperties": true,
+            "title": "Facts",
+            "type": "object"
+          },
+          "caused_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Caused By",
+            "type": "array"
+          },
+          "witness_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Witness Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "event_seq",
+          "tick",
+          "type",
+          "facts",
+          "caused_by",
+          "witness_ids"
+        ],
+        "title": "Event",
+        "type": "object"
+      },
+      "ItemState": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "base_type": {
+            "enum": [
+              "sword",
+              "axe",
+              "material",
+              "consumable"
+            ],
+            "title": "Base Type",
+            "type": "string"
+          },
+          "quality": {
+            "enum": [
+              "common",
+              "uncommon",
+              "rare"
+            ],
+            "title": "Quality",
+            "type": "string"
+          },
+          "material_id": {
+            "title": "Material Id",
+            "type": "string"
+          },
+          "affixes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Affixes",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/$defs/ItemStats"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Owner Id"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region Id"
+          },
+          "tile": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Tile"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "origin_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Origin Event Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "base_type",
+          "quality",
+          "material_id",
+          "stats"
+        ],
+        "title": "ItemState",
+        "type": "object"
+      },
+      "ItemStats": {
+        "additionalProperties": false,
+        "properties": {
+          "damage": {
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Damage",
+            "type": "integer"
+          },
+          "cooldown_s": {
+            "exclusiveMinimum": 0,
+            "maximum": 10,
+            "title": "Cooldown S",
+            "type": "number"
+          },
+          "armor": {
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Armor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "damage",
+          "cooldown_s",
+          "armor"
+        ],
+        "title": "ItemStats",
+        "type": "object"
+      },
+      "Tile": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "minimum": 0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "minimum": 0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "Tile",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "npc_id": {
+        "title": "Npc Id",
+        "type": "string"
+      },
+      "world_version": {
+        "title": "World Version",
+        "type": "integer"
+      },
+      "identity": {
+        "additionalProperties": true,
+        "title": "Identity",
+        "type": "object"
+      },
+      "goals": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Goals",
+        "type": "array"
+      },
+      "own_inventory": {
+        "items": {
+          "$ref": "#/$defs/ItemState"
+        },
+        "title": "Own Inventory",
+        "type": "array"
+      },
+      "known_entities": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Known Entities",
+        "type": "array"
+      },
+      "known_events": {
+        "items": {
+          "$ref": "#/$defs/Event"
+        },
+        "title": "Known Events",
+        "type": "array"
+      },
+      "memories": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Memories",
+        "type": "array"
+      },
+      "allowed_actions": {
+        "items": {
+          "enum": [
+            "WAIT",
+            "MOVE",
+            "GATHER",
+            "TRANSFER",
+            "SHARE_INFO",
+            "PROPOSE_RELATION",
+            "RESPOND_PROPOSAL",
+            "ATTACK",
+            "FLEE",
+            "CRAFT",
+            "JOIN_ORG",
+            "LEAVE_ORG"
+          ],
+          "type": "string"
+        },
+        "title": "Allowed Actions",
+        "type": "array"
+      },
+      "policy": {
+        "additionalProperties": {
+          "type": "number"
+        },
+        "title": "Policy",
+        "type": "object"
+      },
+      "policy_version": {
+        "title": "Policy Version",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "npc_id",
+      "world_version",
+      "identity",
+      "goals",
+      "own_inventory",
+      "known_entities",
+      "known_events",
+      "memories",
+      "allowed_actions",
+      "policy",
+      "policy_version"
+    ],
+    "title": "AgentContext",
+    "type": "object"
+  },
+  "Event": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "title": "Id",
+        "type": "string"
+      },
+      "event_seq": {
+        "minimum": 0,
+        "title": "Event Seq",
+        "type": "integer"
+      },
+      "tick": {
+        "minimum": 0,
+        "title": "Tick",
+        "type": "integer"
+      },
+      "type": {
+        "title": "Type",
+        "type": "string"
+      },
+      "actor_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Actor Id"
+      },
+      "target_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Target Id"
+      },
+      "facts": {
+        "additionalProperties": true,
+        "title": "Facts",
+        "type": "object"
+      },
+      "caused_by": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Caused By",
+        "type": "array"
+      },
+      "witness_ids": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Witness Ids",
+        "type": "array"
+      }
+    },
+    "required": [
+      "id",
+      "event_seq",
+      "tick",
+      "type",
+      "facts",
+      "caused_by",
+      "witness_ids"
+    ],
+    "title": "Event",
+    "type": "object"
+  },
+  "Task": {
+    "$defs": {
+      "Tile": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "minimum": 0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "minimum": 0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "Tile",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "title": "Id",
+        "type": "string"
+      },
+      "actor_id": {
+        "title": "Actor Id",
+        "type": "string"
+      },
+      "kind": {
+        "title": "Kind",
+        "type": "string"
+      },
+      "target_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Target Id"
+      },
+      "target_region_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Target Region Id"
+      },
+      "target_tile": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Tile"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "status": {
+        "enum": [
+          "pending",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "started_tick": {
+        "minimum": 0,
+        "title": "Started Tick",
+        "type": "integer"
+      },
+      "source_event_ids": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Source Event Ids",
+        "type": "array"
+      }
+    },
+    "required": [
+      "id",
+      "actor_id",
+      "kind",
+      "status",
+      "started_tick",
+      "source_event_ids"
+    ],
+    "title": "Task",
+    "type": "object"
+  },
+  "CommandPayloads": {
+    "CHECKPOINT": {
+      "$defs": {
+        "PositionEntry": {
+          "additionalProperties": false,
+          "properties": {
+            "actor_id": {
+              "title": "Actor Id",
+              "type": "string"
+            },
+            "tile": {
+              "$ref": "#/$defs/Tile"
+            }
+          },
+          "required": [
+            "actor_id",
+            "tile"
+          ],
+          "title": "PositionEntry",
+          "type": "object"
+        },
+        "Tile": {
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "minimum": 0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "title": "Tile",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "region_id": {
+          "title": "Region Id",
+          "type": "string"
+        },
+        "positions": {
+          "items": {
+            "$ref": "#/$defs/PositionEntry"
+          },
+          "title": "Positions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "region_id",
+        "positions"
+      ],
+      "title": "CheckpointPayload",
+      "type": "object"
+    },
+    "HIT": {
+      "$defs": {
+        "Tile": {
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "minimum": 0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "title": "Tile",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "attack_id": {
+          "title": "Attack Id",
+          "type": "string"
+        },
+        "attacker_id": {
+          "title": "Attacker Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        },
+        "weapon_id": {
+          "title": "Weapon Id",
+          "type": "string"
+        },
+        "region_id": {
+          "title": "Region Id",
+          "type": "string"
+        },
+        "attacker_tile": {
+          "$ref": "#/$defs/Tile"
+        },
+        "target_tile": {
+          "$ref": "#/$defs/Tile"
+        }
+      },
+      "required": [
+        "attack_id",
+        "attacker_id",
+        "target_id",
+        "weapon_id",
+        "region_id",
+        "attacker_tile",
+        "target_tile"
+      ],
+      "title": "HitPayload",
+      "type": "object"
+    },
+    "PICKUP": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "item_id"
+      ],
+      "title": "OwnedItemPayload",
+      "type": "object"
+    },
+    "EQUIP": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "item_id"
+      ],
+      "title": "OwnedItemPayload",
+      "type": "object"
+    },
+    "GIVE": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "item_id",
+        "target_id"
+      ],
+      "title": "GivePayload",
+      "type": "object"
+    },
+    "ACCEPT_OFFER": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "offer_id": {
+          "title": "Offer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "offer_id"
+      ],
+      "title": "AcceptOfferPayload",
+      "type": "object"
+    },
+    "CHANGE_REGION": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "exit_id": {
+          "title": "Exit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "exit_id"
+      ],
+      "title": "ChangeRegionPayload",
+      "type": "object"
+    },
+    "TASK_REPORT": {
+      "$defs": {
+        "Tile": {
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "minimum": 0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "title": "Tile",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "succeeded",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "region_id": {
+          "title": "Region Id",
+          "type": "string"
+        },
+        "tile": {
+          "$ref": "#/$defs/Tile"
+        },
+        "failure_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Code"
+        }
+      },
+      "required": [
+        "task_id",
+        "status",
+        "actor_id",
+        "region_id",
+        "tile"
+      ],
+      "title": "TaskReportPayload",
+      "type": "object"
+    },
+    "JOIN_ORG": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "org_id": {
+          "title": "Org Id",
+          "type": "string"
+        },
+        "offer_id": {
+          "title": "Offer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "org_id",
+        "offer_id"
+      ],
+      "title": "JoinOrgPayload",
+      "type": "object"
+    },
+    "LEAVE_ORG": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "org_id": {
+          "title": "Org Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "org_id"
+      ],
+      "title": "LeaveOrgPayload",
+      "type": "object"
+    }
+  }
+}

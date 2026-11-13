@@ -1,0 +1,91 @@
+{
+  "schema_version": "v1",
+  "tile_size_px": 32,
+  "fixture_only": true,
+  "regions": [
+    {
+      "id": "market",
+      "width_tiles": 48,
+      "height_tiles": 32,
+      "blocked_tiles": [],
+      "spawn_tile": {
+        "x": 8.5,
+        "y": 8.5
+      },
+      "exits": [
+        {
+          "id": "market_to_greenwood",
+          "tile": {
+            "x": 45.5,
+            "y": 16.5
+          },
+          "destination_region_id": "greenwood",
+          "destination_tile": {
+            "x": 2.5,
+            "y": 16.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "greenwood",
+      "width_tiles": 48,
+      "height_tiles": 32,
+      "blocked_tiles": [],
+      "spawn_tile": {
+        "x": 8.5,
+        "y": 8.5
+      },
+      "exits": [
+        {
+          "id": "greenwood_to_market",
+          "tile": {
+            "x": 2.5,
+            "y": 16.5
+          },
+          "destination_region_id": "market",
+          "destination_tile": {
+            "x": 44.5,
+            "y": 16.5
+          }
+        },
+        {
+          "id": "greenwood_to_moonwood",
+          "tile": {
+            "x": 45.5,
+            "y": 16.5
+          },
+          "destination_region_id": "moonwood",
+          "destination_tile": {
+            "x": 2.5,
+            "y": 16.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "moonwood",
+      "width_tiles": 48,
+      "height_tiles": 32,
+      "blocked_tiles": [],
+      "spawn_tile": {
+        "x": 8.5,
+        "y": 8.5
+      },
+      "exits": [
+        {
+          "id": "moonwood_to_greenwood",
+          "tile": {
+            "x": 2.5,
+            "y": 16.5
+          },
+          "destination_region_id": "greenwood",
+          "destination_tile": {
+            "x": 44.5,
+            "y": 16.5
+          }
+        }
+      ]
+    }
+  ]
+}

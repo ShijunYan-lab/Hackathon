@@ -1,0 +1,112 @@
+{
+  "api_version": "v1",
+  "request_id": "req_new_01",
+  "ok": true,
+  "world_id": "world_example",
+  "world_version": 0,
+  "data": {
+    "state": {
+      "world_id": "world_example",
+      "seed": 20261113,
+      "tick": 0,
+      "world_version": 0,
+      "player_id": "player_01",
+      "current_region_id": "market",
+      "actors": [
+        {
+          "id": "player_01",
+          "kind": "player",
+          "name": "Traveler",
+          "alive": true,
+          "hp": 80,
+          "max_hp": 80,
+          "armor": 0,
+          "region_id": "market",
+          "tile": {
+            "x": 8.5,
+            "y": 8.5
+          },
+          "appearance_key": "traveler",
+          "org_ids": [],
+          "equipped_item_id": "item_01",
+          "behavior": "idle",
+          "task_id": null
+        },
+        {
+          "id": "npc_02",
+          "kind": "npc",
+          "name": "MOCK merchant",
+          "alive": true,
+          "hp": 45,
+          "max_hp": 45,
+          "armor": 0,
+          "region_id": "market",
+          "tile": {
+            "x": 9.5,
+            "y": 8.5
+          },
+          "appearance_key": "merchant",
+          "org_ids": [
+            "org_01"
+          ],
+          "equipped_item_id": null,
+          "behavior": "idle",
+          "task_id": null
+        }
+      ],
+      "items": [
+        {
+          "id": "item_01",
+          "name": "MOCK iron sword",
+          "base_type": "sword",
+          "quality": "common",
+          "material_id": "iron",
+          "affixes": [],
+          "stats": {
+            "damage": 6,
+            "cooldown_s": 0.5,
+            "armor": 0
+          },
+          "owner_id": "player_01",
+          "region_id": null,
+          "tile": null,
+          "origin_event_ids": [
+            "evt_init"
+          ]
+        }
+      ],
+      "organizations": [
+        {
+          "id": "org_01",
+          "name": "MOCK traders",
+          "function_tags": [
+            "trade"
+          ],
+          "member_ids": [
+            "npc_02"
+          ],
+          "representative_id": "npc_02",
+          "resources": {
+            "coin": 10
+          },
+          "status": "active"
+        }
+      ],
+      "relations": [],
+      "tasks": [],
+      "sites": [
+        {
+          "id": "site_herb",
+          "kind": "herb",
+          "region_id": "greenwood",
+          "tile": {
+            "x": 12.5,
+            "y": 12.5
+          },
+          "remaining": 5
+        }
+      ]
+    }
+  },
+  "error": null
+}

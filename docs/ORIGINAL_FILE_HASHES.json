@@ -1,0 +1,23 @@
+{
+  "shared/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "shared/mock_openapi.json": "bd3eeca9caf3c1e868caba9c770f12deb5f62449ccecc888b863ce5f7f8e550c",
+  "shared/protocol.py": "49869f1338d1976ddb02a855a323db24237a0f2ce15369f9d475e6b264148947",
+  "shared/protocol.schema.json": "d4f77a05de0363885d4c47a372be777639c606fa54aee6e802ac684c6bb7d8ad",
+  "shared/regions.json": "8d1f02f05e966787f293a3b9afe2b28a7dca3b082d03e89edb777e16a5b4e583",
+  "examples/advance_request.json": "113efe913c452144e8072b1e9d790ec80e981acecf3d01816d1644b598789d14",
+  "examples/advance_response.json": "f208763ca2fb9040ad0cb1498041839d6602dcd8e616a89561e090114a923318",
+  "examples/agent_decision.json": "8356d5616d1a63070312b6f77d027784ca3eb43ded37dbeac3daf1a6658d4c78",
+  "examples/dialogue_request.json": "daae88ab015abd22e32821f9e9406588b28fbbf820a035188ebe473fb132d211",
+  "examples/dialogue_response.json": "d8412d5de75138eb8bc020640ff2cb64f17202ec1e63a674e0285a837c9672fd",
+  "examples/error_response.json": "e75956ae62923a8d945d05c827d4a68fb86702166a8ce9361bedb951d5b5e5f2",
+  "examples/hit_request.json": "530246204380486be3b4a7693866e5a5aa25e6a6b319392455bf968791accff2",
+  "examples/new_world_request.json": "c723609ee929e5be11a0dc4d11967ddb07c80a37790586fa95d3e744e29be84e",
+  "examples/state_response.json": "37f3d6854e5f04ac5ec56e59728435be0858e8fa0f4b6fda000196e2548c6ce2",
+  "tests/test_contracts.py": "f2982a558c41927462ee936d1ff9ef189e4da9bf6ba72f05c485876e6b2a0b48",
+  "tools/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "tools/check_contracts.py": "3bc83fc8a74656d1df26f3b18e91839717fcd87e69fd2ec188a4be035e072d2a",
+  "tools/mock_api.py": "61e4e03387fff28a1d55850b8c2025f8112aca0b1c10827fd22569dfd582a993",
+  "requirements.txt": "83c2e2d0f592242e14672807095cb4fec68e3743da882736c286d50110355c2e",
+  "requirements-build.txt": "62d2297563d627ecc05af21002ca3659ca1714957a089e0d5a7e40ebdd2e5ed1",
+  ".env.example": "9c91a62107e950d6087ccdbd9933c6d2a67b3bb297eaf6c91e1911c5e5d00a73"
+}
