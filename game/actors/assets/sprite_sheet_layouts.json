@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "description": "D-art default: one 48x64 frame; 4 columns; 7 action rows. Individual skins can override path/frame_size/animations.",
+  "animations": {
+    "idle":   {"row": 0, "frames": 2, "fps": 3.0, "loop": true},
+    "run":    {"row": 1, "frames": 4, "fps": 10.0, "loop": true},
+    "attack": {"row": 2, "frames": 4, "fps": 13.0, "loop": false},
+    "hurt":   {"row": 3, "frames": 2, "fps": 9.0, "loop": false},
+    "death":  {"row": 4, "frames": 4, "fps": 6.0, "loop": false},
+    "dodge":  {"row": 5, "frames": 4, "fps": 15.0, "loop": false},
+    "sprint": {"row": 6, "frames": 4, "fps": 14.0, "loop": true}
+  },
+  "skins": {}
+}
