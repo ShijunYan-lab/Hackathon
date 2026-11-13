@@ -57,7 +57,8 @@ def test_damage_and_request_and_attack_deduplication(arena):
     result = post(arena, body)
     assert result.status_code == 200
     data = result.json()["data"]
-    assert data["state"]["actors"][1]["hp"] == before["actors"][1]["hp"] - before["items"][0]["stats"]["damage"]
+    damage = max(1, before["items"][0]["stats"]["damage"] - before["actors"][1]["armor"])
+    assert data["state"]["actors"][1]["hp"] == before["actors"][1]["hp"] - damage
     assert post(arena, body).json() == result.json()
     body["request_id"] = uuid4().hex
     duplicate = post(arena, body).json()

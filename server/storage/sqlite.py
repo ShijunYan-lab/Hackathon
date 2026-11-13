@@ -12,6 +12,7 @@ from shared.protocol import CommandRequest, Envelope, Event, HitPayload, NewWorl
 from server.generation.initial_world import initial_world
 from server.world.commands import WorldError, apply_checkpoint
 from server.world.combat import CombatRules, settle_hit, validate_hit
+from server.world.items import apply_item_command
 
 
 def encode(value):
@@ -155,8 +156,12 @@ class WorldStore:
                                 caused_by=[], witness_ids=[state.player_id])]
             elif body.kind == "HIT":
                 events = self.apply_hit(connection, state, body, json.loads(row["region"]), seq)
+            elif body.kind in ("PICKUP", "EQUIP", "GIVE"):
+                events = apply_item_command(state, body.kind, body.payload, seq)
+                connection.execute("UPDATE attacks SET valid=0 WHERE world_id=? AND attacker_id=?",
+                                   (world_id, body.payload["actor_id"]))
             else:
-                raise WorldError("ACTION_NOT_SUPPORTED", "当前支持 CHECKPOINT 和 HIT，其他动作待实现。")
+                raise WorldError("ACTION_NOT_SUPPORTED", "该动作尚未实现。")
             state.world_version += 1
             state = StateView.model_validate(state.model_dump())
             connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))

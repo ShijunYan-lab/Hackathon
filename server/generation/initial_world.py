@@ -5,6 +5,7 @@ import random
 from uuid import NAMESPACE_URL, uuid5
 
 from shared.protocol import ActorState, Event, ItemState, ItemStats, OrganizationView, StateView, Tile
+from server.generation.equipment import generate_weapon
 
 
 def initial_world(world_id: str, seed: int, player_name: str, region: dict):
@@ -50,11 +51,9 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
                        stats=ItemStats(damage=rng.randint(4, 8), cooldown_s=.5, armor=0))
     weapons = [weapon]
     for index, actor in enumerate(actors[1:], start=1):
-        npc_weapon = ItemState(id=identifier("item", index), name="随身铁剑", base_type="sword",
-                               quality="common", material_id="iron", owner_id=actor.id,
-                               origin_event_ids=[event_id],
-                               stats=ItemStats(damage=4, cooldown_s=.6, armor=0))
+        npc_weapon = generate_weapon(rng, identifier("item", index), actor.id, event_id)
         actor.equipped_item_id = npc_weapon.id
+        actor.armor = npc_weapon.stats.armor
         weapons.append(npc_weapon)
     state = StateView(world_id=world_id, seed=seed, tick=0, world_version=0,
                       player_id=player_id, current_region_id=region["id"], actors=actors,

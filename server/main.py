@@ -76,7 +76,8 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     def health():
         return Envelope[dict](request_id="health", ok=True, data={
             "status": "ok", "mode": "fallback", "api_version": "v1",
-            "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup"],
+            "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup",
+                             "pickup", "equip", "give"],
             "model_connected": False, "map_fixture": app.state.map_fixture,
         })
 
