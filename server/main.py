@@ -13,7 +13,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest
+from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest, SaveRequest, LoadRequest
+from server.storage.snapshots import Snapshots
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
 from server.world.combat import CombatRules
@@ -49,6 +50,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         config = director_config or DirectorConfig.from_file(os.environ.get(
             "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
         app.state.turns = WorldTurns(app.state.agents, config, director_provider)
+        app.state.snapshots = Snapshots(app.state.store)
         yield
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
@@ -107,6 +109,14 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post("/v1/worlds/{world_id}/commands")
     def commands(world_id: str, body: CommandRequest):
         return app.state.store.command(world_id, body)
+
+    @app.post('/v1/worlds/{world_id}/saves')
+    def save(world_id: str, body: SaveRequest):
+        return app.state.snapshots.save(world_id, body)
+
+    @app.post('/v1/saves/{save_id}/load')
+    def load(save_id: str, body: LoadRequest):
+        return app.state.snapshots.load(save_id, body)
 
     @app.post("/v1/worlds/{world_id}/dialogue")
     async def dialogue(world_id: str, body: DialogueRequest):

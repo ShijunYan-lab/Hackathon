@@ -74,3 +74,10 @@ git log -3 --oneline
 ```
 
 提交记录用于查看每个节点的增量，STATUS 记录验证范围。后续同学获取该分支，根据接口说明组装，联调完成后再按团队流程合并。
+
+
+## 步骤 09：存档与分支
+
+POST /v1/worlds/{world_id}/saves，发送 request_id、expected_world_version、label。返回 save_id、saved_world_version 和 state；保存本身使版本增一。
+
+POST /v1/saves/{save_id}/load，发送新的 request_id，返回 new_world_id、parent_save_id、state。同一请求重试返回同一分支；不同请求创建独立分支。实体 ID 保留，D 切换 world_id 后清空旧请求/动画队列，不把旧世界响应覆盖到新世界。后续命令使用返回的 world_version。分支保留存档前的命中和任务去重记录，未完成任务继续按原规则上报。不要恢复一半的攻击动画。
