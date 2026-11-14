@@ -13,6 +13,7 @@ var navigation
 var actors:Dictionary={}
 var loot:Dictionary={}
 var state:Dictionary={}
+var world_epoch:int=0
 var economy:Dictionary={}
 var near_npc:Node2D
 var interactable:Node2D
@@ -32,10 +33,17 @@ var evaluation_running:=false
 var evaluation_transition:=false
 var model_mode:="未调用"
 var boot_started:=false
+var local_backend_pid:int=-1
+var local_starting:bool=false
+var local_setup_pid:int=-1
+var local_setup_pending:bool=false
 var autostart:=true
 var persistent_session:=true
 var play_ui
+var resource_nodes: Dictionary = {}
 var container_nodes: Dictionary = {}
+var scene_props: Array[Node2D] = []
+var nearby_prop = null
 var debug_ui: bool = false
 var autosave_timer: float = 0.0
 
@@ -57,6 +65,7 @@ func _ready()->void:
 	landmark_data=Layout.new().landmarks
 	landmarks=get_tree().get_nodes_in_group("landmarks")
 	canopies=get_tree().get_nodes_in_group("canopies")
+	_spawn_scene_props()
 	var water:=ShaderMaterial.new()
 	water.shader=preload("res://maps/water.gdshader")
 	$World/Terrain.material=water
@@ -111,11 +120,18 @@ func _process(delta:float)->void:
 	for id in actors:
 		var npc=actors[id]
 		if npc==player: continue
-		npc.set_controls_locked(blocked or menu_blocked or hud.panel_open or hud.dialog_open or (not evaluation.is_empty() and not evaluation_running))
+		npc.set_controls_locked(blocked or ((menu_blocked or hud.panel_open or hud.dialog_open) and evaluation.is_empty()) or (not evaluation.is_empty() and not evaluation_running))
 		var d:float=player.position.distance_to(npc.position)
 		if npc.alive and npc.actor_kind=="npc" and d<distance:
 			distance=d
 			near_npc=npc
+	nearby_prop = null
+	var nearby_prop_distance: float = 56.0
+	for prop in scene_props:
+		var prop_distance: float = player.position.distance_to(prop.position)
+		if prop_distance < nearby_prop_distance:
+			nearby_prop_distance = prop_distance
+			nearby_prop = prop
 	interactable=null
 	distance=75
 	for place in landmarks:
@@ -127,7 +143,7 @@ func _process(delta:float)->void:
 		var diff:Vector2=player.position-tree.position
 		tree.get_node("Art").modulate.a=0.42 if absf(diff.x)<47 and diff.y<0 and diff.y> -133 else 1.0
 	for projectile in get_tree().get_nodes_in_group("world_projectiles"):
-		projectile.set_physics_process(not (blocked or menu_blocked or hud.dialog_open or hud.panel_open))
+		projectile.set_physics_process(not (blocked or ((menu_blocked or hud.dialog_open or hud.panel_open) and evaluation.is_empty())))
 	if blocked or menu_blocked: return
 	autosave_timer+=delta
 	checkpoint_timer+=delta
@@ -145,7 +161,7 @@ func _process(delta:float)->void:
 	elif api.idle() and evaluation.is_empty() and autosave_timer>=60 and not hud.dialog_open and not hud.panel_open:
 		autosave_timer=0
 		save_game()
-	elif api.idle() and evaluation.is_empty() and advance_timer>=12 and not hud.dialog_open and not hud.panel_open:
+	elif api.idle() and evaluation.is_empty() and advance_timer>=3 and not hud.dialog_open and not hud.panel_open:
 		advance_timer=0
 		api.call_api("advance","/v1/worlds/{world}/heartbeat",{"reason":"idle_timer","trigger_event_ids":[]},true)
 
@@ -163,7 +179,7 @@ func report_hit(payload:Dictionary)->void:
 	if not api.connected or api.suspended or state.is_empty(): return
 	if not evaluation.is_empty() and not evaluation_running: return
 	var hit:=payload.duplicate(true)
-	hit.attack_id=api.session+"-"+session_world+"-"+str(payload.attack_id)
+	hit.attack_id=api.session+"-"+session_world+"-"+str(world_epoch)+"-"+str(payload.attack_id)
 	api.command("HIT",hit)
 
 func report_task(payload:Dictionary)->void:
@@ -177,6 +193,7 @@ func apply_state(next:Dictionary,operation:String)->void:
 		return
 	var switched:bool=state.get("world_id","")!=next.world_id
 	if switched:
+		world_epoch+=1
 		hud.close_dialogue()
 		for projectile in get_tree().get_nodes_in_group("world_projectiles"):
 			projectile.get_parent().remove_child(projectile)
@@ -212,6 +229,7 @@ func apply_state(next:Dictionary,operation:String)->void:
 		else: actor=actors[id]
 		if fresh or switched: actor.position=Vector2(value.tile.x,value.tile.y)*32
 		actor.apply_actor_state(value)
+		if actor != player: actor.safe_zones = next.get("safe_zones", [])
 		actors[id]=actor
 		var slots: Dictionary = {}
 		for slot in actor.WEAPON_CATALOG.EQUIPMENT_SLOTS: slots[slot] = ""
@@ -240,6 +258,7 @@ func apply_state(next:Dictionary,operation:String)->void:
 		if actor and actor!=player and task.status in ["pending","running"]: actor.execute_task(task)
 	_sync_loot()
 	_sync_containers()
+	_sync_resources()
 	var female: bool = str(next.get("appearance", "male")) == "female"
 	if player.female != female:
 		player.female = female
@@ -276,6 +295,18 @@ func send_dialogue(id:String,value:String)->void:
 
 func interact()->void:
 	if player.controls_locked: return
+	var nearest_resource = null
+	var resource_distance: float = 60.0
+	for node in resource_nodes.values():
+		var d: float = player.position.distance_to(node.position)
+		if d < resource_distance and (near_npc == null or d < player.position.distance_to(near_npc.position)):
+			nearest_resource=node
+			resource_distance=d
+	if nearest_resource != null:
+		checkpoint(true)
+		var action: String = "BOARD" if nearest_resource.data.kind=="board" else "GATHER"
+		api.call_api("interact","/v1/worlds/{world}/interact",{"action":action,"target_id":nearest_resource.data.id},true)
+		return
 	for node in loot.values():
 		if player.position.distance_to(node.position)<=60:
 			checkpoint(true)
@@ -301,6 +332,8 @@ func interact()->void:
 		api.call_api("history","/v1/worlds/{world}/dialogue/"+str(near_npc.entity_id)+"/history")
 	elif nearest_box != null:
 		hud.notice("\u8fd9\u662f\u5546\u4eba\u7684\u8d27\u7bb1\uff0c\u8bf7\u4e0e\u4ed6\u4ea4\u8c08\u67e5\u770b\u5546\u54c1\u3002")
+	elif nearby_prop != null:
+		hud.notice(str(nearby_prop.get("data").get("label", "场景物件")) + "：" + str(nearby_prop.get("data").get("description", "")), 7.0)
 	elif interactable: hud.show_place(interactable)
 
 func save_game()->void:
@@ -342,11 +375,11 @@ func _completed(operation:String,data:Dictionary)->void:
 		"health":
 			if data.has("region_id") and (data.region_id!="overworld" or int(data.get("map_width_tiles",0))!=320):
 				api.connected=false
-				hud.notice("8765 端口运行的是旧地图服务。请启动 release/run_backend.py。",30)
+				_start_local_backend()
 				return
-			if str(data.get("play_revision", "")) != "r6":
-				play_ui.notice("\u5f53\u524d 8765 \u7aef\u53e3\u662f\u65e7\u7248\u670d\u52a1\uff0c\u8bf7\u505c\u6b62\u65e7\u7ec8\u7aef\u5e76\u542f\u52a8\u672c\u7248\u540e\u7aef\u3002")
+			if str(data.get("play_revision", "")) != "r7":
 				api.connected = false
+				_start_local_backend()
 				return
 			api.call_api("model_status", "/v1/local/model")
 		"resume","refresh":
@@ -424,16 +457,138 @@ func _failed(operation:String,message:String)->void:
 	if operation=="dialogue": hud.receive_reply(message,"fallback")
 	elif hud.pending and message.contains("VERSION_CONFLICT"): hud.receive_reply("世界已更新，请重新发送这句话。","fallback")
 	if operation=="health" and not boot_started and autostart and api.base_url=="http://127.0.0.1:8765":
-		boot_started=true
-		var root:=ProjectSettings.globalize_path("res://").get_base_dir().get_base_dir()
-		var python:=root.path_join(".venv/Scripts/pythonw.exe")
-		if FileAccess.file_exists(python):
-			OS.create_process(python,[root.path_join("release/run_backend.py")],false)
-			hud.notice("正在启动本地世界服务……",8)
-			await get_tree().create_timer(3).timeout
-			api.retry()
+		_start_local_backend()
 	elif operation=="resume" and state.is_empty() and api.connected:
-		hud.notice("旧世界无法读取；F9 重试，或 F8 开始新旅途。原存档仍保留。",30)
+		hud.notice("旧世界无法读取；F9 重试，或从主菜单开始新旅途。原存档仍保留。",30)
+
+## Explicit Windows action from the title screen. This does not install anything
+## until the player clicks the button. Setup runs in a separate console and
+## writes an atomic success/failure marker after dependency verification.
+func install_local_runtime() -> void:
+	if local_setup_pending:
+		play_ui.notice("运行环境正在安装，请查看弹出的 PowerShell 窗口。")
+		return
+	if OS.get_name() != "Windows":
+		play_ui.notice("自动安装仅支持 Windows；请在项目根目录手动执行 Setup_Game.bat。")
+		return
+	if api.connected:
+		play_ui.notice("当前世界已经连接，不需要安装运行环境。")
+		return
+	var root:String=ProjectSettings.globalize_path("res://").trim_suffix("/").get_base_dir()
+	var setup_script:String=root.path_join("release/setup_game.ps1")
+	if not FileAccess.file_exists(setup_script):
+		play_ui.notice("找不到 release/setup_game.ps1；请重新解压完整游戏源码。")
+		return
+	DirAccess.make_dir_recursive_absolute(root.path_join("runtime"))
+	var result_path:String=root.path_join("runtime/godot-setup-result.json")
+	if FileAccess.file_exists(result_path):
+		DirAccess.remove_absolute(result_path)
+	var arguments:=PackedStringArray(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", setup_script, "-StatusPath", result_path])
+	local_setup_pid=OS.create_process("powershell.exe", arguments, true)
+	if local_setup_pid<=0:
+		play_ui.notice("未能启动 PowerShell；请在项目根目录运行 Setup_Game.bat。")
+		return
+	local_setup_pending=true
+	play_ui.notice("安装程序已启动，请查看弹出的 PowerShell 窗口；依赖验证通过后将自动连接。")
+	_poll_local_setup(result_path)
+
+func _poll_local_setup(result_path:String) -> void:
+	while local_setup_pending and is_inside_tree():
+		await get_tree().create_timer(0.5).timeout
+		if not is_inside_tree(): return
+		if FileAccess.file_exists(result_path):
+			var raw:String=FileAccess.get_file_as_string(result_path)
+			var parsed:Variant=JSON.parse_string(raw)
+			if parsed is Dictionary:
+				local_setup_pending=false
+				if parsed.get("status", "") == "ready":
+					play_ui.notice("运行环境已安装，正在启动本地世界服务……")
+					_start_local_backend()
+				else:
+					play_ui.notice("安装失败：" + str(parsed.get("message", "请检查 PowerShell 窗口。")))
+				return
+		if local_setup_pid>0 and not OS.is_process_running(local_setup_pid):
+			# Let the PowerShell process finish writing the result file.
+			await get_tree().create_timer(0.5).timeout
+			if not FileAccess.file_exists(result_path):
+				local_setup_pending=false
+				play_ui.notice("安装进程已退出但未生成结果，请运行 Setup_Game.bat 查看错误。")
+				return
+
+func _start_local_backend() -> void:
+	if local_starting: return
+	if local_backend_pid>0 and OS.is_process_running(local_backend_pid):
+		play_ui.notice("这个目录中的后端仍不匹配。请使用完整 R7 运行包，不要只在旧 R6 工程中替换客户端。")
+		return
+	local_starting=true
+	boot_started=true
+	api.connected=false
+	play_ui.notice("发现旧服务或尚未连接，正在为本版游戏启动独立服务……")
+	var project_root:String=ProjectSettings.globalize_path("res://").trim_suffix("/").get_base_dir()
+	if not FileAccess.file_exists(project_root.path_join("server/world/continuity.py")):
+		local_starting=false
+		play_ui.notice("当前目录缺少 R7 后端。请打开完整 R7 运行包的 Start_Game.bat。")
+		return
+	var python:String=""
+	for relative in [".runtime/python/python.exe",".venv/Scripts/python.exe"]:
+		var candidate:String=project_root.path_join(relative)
+		if FileAccess.file_exists(candidate):
+			python=candidate
+			break
+	if python.is_empty():
+		local_starting=false
+		play_ui.notice("尚未安装本地 Python 环境。请点击主菜单的「安装/修复运行环境」，或运行 Start_Game.bat。")
+		return
+	var port:int=0
+	for candidate in range(8766,8866):
+		var probe:=TCPServer.new()
+		if probe.listen(candidate,"127.0.0.1")==OK:
+			port=candidate
+			probe.stop()
+			break
+	if port==0:
+		local_starting=false
+		play_ui.notice("暂时没有可用的本地端口，请关闭多余的游戏窗口后重试。")
+		return
+	DirAccess.make_dir_recursive_absolute(project_root.path_join("runtime"))
+	api.queue.clear()
+	api.active={}
+	api.suspended=false
+	api.http.cancel_request()
+	api.base_url="http://127.0.0.1:"+str(port)
+	var database:String=project_root.path_join("runtime/playable-r7.sqlite3")
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--local-db="):database=argument.trim_prefix("--local-db=")
+	local_backend_pid=OS.create_process(python,[project_root.path_join("release/run_backend.py"),"--port",str(port),"--db",database],false)
+	if local_backend_pid<0:
+		local_starting=false
+		play_ui.notice("本版服务未能启动，请使用 Start_Game.bat 查看错误。")
+		return
+	for attempt in range(80):
+		await get_tree().create_timer(0.25).timeout
+		if not OS.is_process_running(local_backend_pid):
+			local_starting = false
+			play_ui.notice("Python 后端启动后立即退出。请在项目根目录运行 Start_Game.bat，查看终端报错。")
+			return
+		var peer:=StreamPeerTCP.new()
+		peer.connect_to_host("127.0.0.1",port)
+		peer.poll()
+		if peer.get_status()==StreamPeerTCP.STATUS_CONNECTING:
+			await get_tree().create_timer(0.05).timeout
+			peer.poll()
+		var ready:bool=peer.get_status()==StreamPeerTCP.STATUS_CONNECTED
+		peer.disconnect_from_host()
+		if ready:
+			local_starting=false
+			play_ui.notice("本版服务已启动，正在建立连接……")
+			api.call_api("health","/health")
+			return
+	local_starting=false
+	play_ui.notice("本版服务启动超时。请运行 Start_Game.bat 查看后端错误；原存档未被删除。")
+
+func _exit_tree() -> void:
+	if local_backend_pid>0 and OS.is_process_running(local_backend_pid):
+		OS.kill(local_backend_pid)
 
 func _unhandled_input(event:InputEvent)->void:
 	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_F9:
@@ -496,3 +651,39 @@ func _notification(what: int) -> void:
 		else:
 			play_ui.open_pause()
 			play_ui.notice("\u64cd\u4f5c\u5c1a\u672a\u7ed3\u675f\u3002\u8bf7\u5148\u7b49\u5f85\u6216\u91cd\u8fde\uff0c\u518d\u4fdd\u5b58\u9000\u51fa\u3002")
+
+func _sync_resources() -> void:
+	var present: Dictionary = {}
+	var values: Array = state.get("sites",[]).duplicate()
+	for entry in state.get("notices",[]):
+		if entry.get("kind")=="board": values.append(entry)
+	for value in values:
+		var id: String = str(value.id)
+		present[id]=true
+		if not resource_nodes.has(id):
+			var node=preload("res://maps/world_resource.gd").new()
+			$World/Entities.add_child(node)
+			resource_nodes[id]=node
+		resource_nodes[id].data=value
+		resource_nodes[id].position=Vector2(value.tile.x,value.tile.y)*32
+		resource_nodes[id].queue_redraw()
+	for id in resource_nodes.keys():
+		if not present.has(id):
+			resource_nodes[id].queue_free()
+			resource_nodes.erase(id)
+
+func _spawn_scene_props() -> void:
+	var path: String = "res://maps/scene_props.json"
+	if not FileAccess.file_exists(path): return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not parsed is Dictionary: return
+	for info in parsed.get("props", []):
+		if not info is Dictionary: continue
+		var tile: Dictionary = info.get("tile", {})
+		var node := Node2D.new()
+		node.set_script(preload("res://maps/world_prop.gd"))
+		node.set("data", info)
+		node.position = Vector2(float(tile.get("x", 0)), float(tile.get("y", 0))) * 32.0
+		node.z_index = 0
+		$World/Entities.add_child(node)
+		scene_props.append(node)

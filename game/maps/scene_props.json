@@ -1,0 +1,28 @@
+{
+  "purpose": "Visual and examine-only props; actual harvesting, ownership and quests remain in C.",
+  "props": [
+    {"id":"oak_smith_anvil","kind":"anvil","tile":{"x":80,"y":169},"size":58,"label":"铁匠的铁砧","description":"刃口上的缺口可以修补；制作和修理需要实际材料。"},
+    {"id":"oak_smith_forge","kind":"furnace","tile":{"x":85,"y":171},"size":72,"label":"晨光工坊的炉火","description":"锻炉烧得正旺。附近的铁匠能告诉你哪些矿石有用。"},
+    {"id":"oak_market_crate","kind":"crate","tile":{"x":66,"y":169},"size":52,"label":"集市货箱","description":"贸易货物需要向它的主人提出交易；这只木箱不提供免费物品。"},
+    {"id":"oak_market_sack","kind":"sack","tile":{"x":69,"y":170},"size":48,"label":"谷物麻袋","description":"袋口绑得很紧。这里的货物属于商会。"},
+    {"id":"oak_tavern_fire","kind":"fire","tile":{"x":72,"y":163},"size":55,"label":"酒馆篝火","description":"客人会在炉边谈论真正发生过的事，未经证实的传闻不能当作事实。"},
+    {"id":"oak_tavern_barrel","kind":"barrel","tile":{"x":75,"y":163},"size":52,"label":"酒馆木桶","description":"一只装着饮料的酒桶。"},
+    {"id":"oak_tavern_rack","kind":"rack","tile":{"x":69,"y":159},"size":64,"label":"晾晒架","description":"猎人与商队常在这里晾干雨后的衣物。"},
+    {"id":"raven_workbench","kind":"workbench","tile":{"x":245,"y":167},"size":70,"label":"鸦渡镇工作台","description":"有人在这里整理货物、加工木材。"},
+    {"id":"raven_forge","kind":"anvil","tile":{"x":251,"y":168},"size":55,"label":"镇上的铁砧","description":"锻打工具需要铁矿与木材；附近的工匠可能出售成品。"},
+    {"id":"raven_barrel","kind":"wine","tile":{"x":241,"y":166},"size":52,"label":"运货酒桶","description":"酒桶还带着渡口的泥。"},
+    {"id":"raven_sack","kind":"sack","tile":{"x":246,"y":171},"size":46,"label":"货运麻袋","description":"商路上的物资，物品归属由世界记录。"},
+    {"id":"hunter_camp_tent","kind":"tent","tile":{"x":87,"y":94},"size":77,"label":"猎营帐篷","description":"猎人会在营地休整，也可能为你提供有关黑枝林地的线索。"},
+    {"id":"hunter_camp_fire","kind":"fire","tile":{"x":92,"y":95},"size":58,"label":"猎营营火","description":"刚燃尽的炭火还很暖。"},
+    {"id":"hunter_camp_rack","kind":"rack","tile":{"x":90,"y":89},"size":68,"label":"兽皮晾晒架","description":"兽皮和草药都需要在干燥处保存。"},
+    {"id":"ford_barrel","kind":"barrel","tile":{"x":170,"y":177},"size":54,"label":"渡口水桶","description":"运渡的人总在这里补充饮水。"},
+    {"id":"ford_sign","kind":"sign","tile":{"x":173,"y":172},"size":54,"label":"渡口路标","description":"向北是旧王大道，沿南路可以回到聚居地。"},
+    {"id":"old_road_crate","kind":"crate","tile":{"x":145,"y":144},"size":57,"label":"旧王大道的路箱","description":"一只被风吹旧的路箱；想获取物品，请寻找世界实际生成的宝箱。"},
+    {"id":"fort_fire","kind":"fire","tile":{"x":193,"y":79},"size":60,"label":"断誓堡的残火","description":"废墟里有人来过，但只凭这堆火不能断定是谁。"},
+    {"id":"fort_cauldron","kind":"cauldron","tile":{"x":187,"y":76},"size":58,"label":"废墟药锅","description":"药汤已冷。真正制作药剂仍需要收集材料。"},
+    {"id":"abbey_sack","kind":"sack","tile":{"x":233,"y":49},"size":46,"label":"修道院的旧行囊","description":"旧行囊已经破损，周围可能有人留下过线索。"},
+    {"id":"abbey_sign","kind":"sign","tile":{"x":241,"y":53},"size":55,"label":"修道院铭牌","description":"石牌上残留着断钟纹样。"},
+    {"id":"forest_tent","kind":"tent","tile":{"x":67,"y":76},"size":70,"label":"林间行营","description":"行旅偶尔在这里歇脚，山林并不总是安全的。"},
+    {"id":"forest_fire","kind":"fire","tile":{"x":71,"y":77},"size":48,"label":"林间营火","description":"火堆提醒过路人：附近可能还有其他旅者。"}
+  ]
+}

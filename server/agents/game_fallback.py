@@ -24,6 +24,8 @@ def dialogue(context,text):
             reply={'OPEN_TRADE':'\u53ef\u4ee5\uff0c\u5148\u770b\u770b\u8d27\u7269\u3002','BARGAIN':'\u6211\u4f1a\u6839\u636e\u6211\u4eec\u7684\u5f80\u6765\u6838\u5bf9\u62a5\u4ef7\u3002',
                 'ASK_WORK':'\u6211\u8bf4\u8bf4\u773c\u4e0b\u7684\u96be\u5904\u3002','ACCEPT_QUEST':'\u8bf7\u5e2e\u6211\u5b8c\u6210\u8fd9\u4ef6\u6258\u4ed8\u3002','GUIDE_HOME':'\u591a\u8c22\u6307\u8def\uff0c\u6211\u8fd9\u5c31\u5f80\u56de\u8d70\u3002'}[action]
             break
+    from server.agents.r7_fallback import adapt
+    intent,reply=adapt(context,text,intent,reply)
     if any(s in text for s in ('\u540d\u5b57','\u4f60\u53eb','\u4f60\u662f\u8c01')):
         reply='\u6211\u53eb'+str(context.identity.get('name','\u65c5\u4eba'))+'\u3002\u6211\u662f'+str(context.identity.get('role','\u65c5\u4eba'))+'\u3002'
     if signal in ('insult','threat'):

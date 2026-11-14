@@ -314,6 +314,7 @@ class WorldStore:
             if latest is not None and now - latest["started_at"] < latest["cooldown_s"]:
                 raise WorldError("ATTACK_COOLDOWN", "武器冷却尚未结束。")
             damage = weapon.stats.damage
+            if weapon.durability<30:damage=max(1,damage//2)
             connection.execute("INSERT INTO attacks VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
                                (state.world_id, hit.attack_id, hit.attacker_id, weapon.id, hit.region_id,
                                 now, weapon.stats.cooldown_s, damage))

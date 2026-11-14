@@ -360,6 +360,19 @@
       "ItemState": {
         "additionalProperties": false,
         "properties": {
+          "quantity": {
+            "default": 1,
+            "minimum": 1,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "durability": {
+            "default": 100,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Durability",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -608,6 +621,18 @@
       "SiteView": {
         "additionalProperties": false,
         "properties": {
+          "capacity": {
+            "default": 5,
+            "minimum": 1,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "regen_tick": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Regen Tick",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -748,6 +773,30 @@
     },
     "additionalProperties": false,
     "properties": {
+      "contracts": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Contracts",
+        "type": "array"
+      },
+      "notices": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Notices",
+        "type": "array"
+      },
+      "safe_zones": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Safe Zones",
+        "type": "array"
+      },
       "world_id": {
         "title": "World Id",
         "type": "string"
@@ -889,7 +938,13 @@
               "BARGAIN",
               "ASK_WORK",
               "ACCEPT_QUEST",
-              "GUIDE_HOME"
+              "GUIDE_HOME",
+              "HIRE",
+              "PAY_HIRE",
+              "DISMISS",
+              "QUEST_INFO",
+              "SHARE_NEWS",
+              "PROPOSE_DELIVERY"
             ],
             "title": "Action",
             "type": "string"
@@ -1115,6 +1170,19 @@
       "ItemState": {
         "additionalProperties": false,
         "properties": {
+          "quantity": {
+            "default": 1,
+            "minimum": 1,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "durability": {
+            "default": 100,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Durability",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1344,7 +1412,13 @@
             "BARGAIN",
             "ASK_WORK",
             "ACCEPT_QUEST",
-            "GUIDE_HOME"
+            "GUIDE_HOME",
+            "HIRE",
+            "PAY_HIRE",
+            "DISMISS",
+            "QUEST_INFO",
+            "SHARE_NEWS",
+            "PROPOSE_DELIVERY"
           ],
           "type": "string"
         },
@@ -1563,350 +1637,5 @@
     ],
     "title": "Task",
     "type": "object"
-  },
-  "CommandPayloads": {
-    "CHECKPOINT": {
-      "$defs": {
-        "PositionEntry": {
-          "additionalProperties": false,
-          "properties": {
-            "actor_id": {
-              "title": "Actor Id",
-              "type": "string"
-            },
-            "tile": {
-              "$ref": "#/$defs/Tile"
-            }
-          },
-          "required": [
-            "actor_id",
-            "tile"
-          ],
-          "title": "PositionEntry",
-          "type": "object"
-        },
-        "Tile": {
-          "additionalProperties": false,
-          "properties": {
-            "x": {
-              "minimum": 0,
-              "title": "X",
-              "type": "number"
-            },
-            "y": {
-              "minimum": 0,
-              "title": "Y",
-              "type": "number"
-            }
-          },
-          "required": [
-            "x",
-            "y"
-          ],
-          "title": "Tile",
-          "type": "object"
-        }
-      },
-      "additionalProperties": false,
-      "properties": {
-        "region_id": {
-          "title": "Region Id",
-          "type": "string"
-        },
-        "positions": {
-          "items": {
-            "$ref": "#/$defs/PositionEntry"
-          },
-          "title": "Positions",
-          "type": "array"
-        }
-      },
-      "required": [
-        "region_id",
-        "positions"
-      ],
-      "title": "CheckpointPayload",
-      "type": "object"
-    },
-    "HIT": {
-      "$defs": {
-        "Tile": {
-          "additionalProperties": false,
-          "properties": {
-            "x": {
-              "minimum": 0,
-              "title": "X",
-              "type": "number"
-            },
-            "y": {
-              "minimum": 0,
-              "title": "Y",
-              "type": "number"
-            }
-          },
-          "required": [
-            "x",
-            "y"
-          ],
-          "title": "Tile",
-          "type": "object"
-        }
-      },
-      "additionalProperties": false,
-      "properties": {
-        "attack_id": {
-          "title": "Attack Id",
-          "type": "string"
-        },
-        "attacker_id": {
-          "title": "Attacker Id",
-          "type": "string"
-        },
-        "target_id": {
-          "title": "Target Id",
-          "type": "string"
-        },
-        "weapon_id": {
-          "title": "Weapon Id",
-          "type": "string"
-        },
-        "region_id": {
-          "title": "Region Id",
-          "type": "string"
-        },
-        "attacker_tile": {
-          "$ref": "#/$defs/Tile"
-        },
-        "target_tile": {
-          "$ref": "#/$defs/Tile"
-        }
-      },
-      "required": [
-        "attack_id",
-        "attacker_id",
-        "target_id",
-        "weapon_id",
-        "region_id",
-        "attacker_tile",
-        "target_tile"
-      ],
-      "title": "HitPayload",
-      "type": "object"
-    },
-    "PICKUP": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "item_id": {
-          "title": "Item Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "item_id"
-      ],
-      "title": "OwnedItemPayload",
-      "type": "object"
-    },
-    "EQUIP": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "item_id": {
-          "title": "Item Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "item_id"
-      ],
-      "title": "OwnedItemPayload",
-      "type": "object"
-    },
-    "GIVE": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "item_id": {
-          "title": "Item Id",
-          "type": "string"
-        },
-        "target_id": {
-          "title": "Target Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "item_id",
-        "target_id"
-      ],
-      "title": "GivePayload",
-      "type": "object"
-    },
-    "ACCEPT_OFFER": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "offer_id": {
-          "title": "Offer Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "offer_id"
-      ],
-      "title": "AcceptOfferPayload",
-      "type": "object"
-    },
-    "CHANGE_REGION": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "exit_id": {
-          "title": "Exit Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "exit_id"
-      ],
-      "title": "ChangeRegionPayload",
-      "type": "object"
-    },
-    "TASK_REPORT": {
-      "$defs": {
-        "Tile": {
-          "additionalProperties": false,
-          "properties": {
-            "x": {
-              "minimum": 0,
-              "title": "X",
-              "type": "number"
-            },
-            "y": {
-              "minimum": 0,
-              "title": "Y",
-              "type": "number"
-            }
-          },
-          "required": [
-            "x",
-            "y"
-          ],
-          "title": "Tile",
-          "type": "object"
-        }
-      },
-      "additionalProperties": false,
-      "properties": {
-        "task_id": {
-          "title": "Task Id",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "succeeded",
-            "failed"
-          ],
-          "title": "Status",
-          "type": "string"
-        },
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "region_id": {
-          "title": "Region Id",
-          "type": "string"
-        },
-        "tile": {
-          "$ref": "#/$defs/Tile"
-        },
-        "failure_code": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Failure Code"
-        }
-      },
-      "required": [
-        "task_id",
-        "status",
-        "actor_id",
-        "region_id",
-        "tile"
-      ],
-      "title": "TaskReportPayload",
-      "type": "object"
-    },
-    "JOIN_ORG": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "org_id": {
-          "title": "Org Id",
-          "type": "string"
-        },
-        "offer_id": {
-          "title": "Offer Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "org_id",
-        "offer_id"
-      ],
-      "title": "JoinOrgPayload",
-      "type": "object"
-    },
-    "LEAVE_ORG": {
-      "additionalProperties": false,
-      "properties": {
-        "actor_id": {
-          "title": "Actor Id",
-          "type": "string"
-        },
-        "org_id": {
-          "title": "Org Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "actor_id",
-        "org_id"
-      ],
-      "title": "LeaveOrgPayload",
-      "type": "object"
-    }
   }
 }

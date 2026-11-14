@@ -50,6 +50,9 @@ def apply_intent(connection, state, context, intent, region, seq, source_id):
     if intent.action not in context.allowed_actions:
         raise WorldError("ACTION_NOT_SUPPORTED", "意图超出当前可用动作。")
     actor = living_actor(state, context.npc_id)
+    if intent.action in ('HIRE','PAY_HIRE','DISMISS','QUEST_INFO','SHARE_NEWS','PROPOSE_DELIVERY'):
+        from server.world.continuity import dialogue_action
+        return dialogue_action(connection,state,actor,intent.action,intent.params,intent.target_id,region,seq,source_id)
     from server.world import economy
     if intent.action in ("OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME"):
         from server.world.living_world import apply_dialogue_action
@@ -152,11 +155,13 @@ def apply_task_report(connection, state, payload, region, seq):
     if task.actor_id != report.actor_id or task.status not in ("pending", "running"):
         raise WorldError("PRECONDITION_FAILED", "任务已失效或报告角色不匹配。")
     actor = living_actor(state, report.actor_id)
-    if task.kind not in ("MOVE", "FLEE", "ATTACK"):
+    if task.kind not in ("MOVE", "FLEE", "ATTACK", "FOLLOW"):
         raise WorldError("ACTION_NOT_SUPPORTED", "该任务类型尚未接入结算。")
     if report.status == "failed" and not report.failure_code:
         raise WorldError("PRECONDITION_FAILED", "失败任务需提供原因。")
     if report.status == "succeeded":
+        if task.kind == 'FOLLOW':
+            raise WorldError('CONTINUOUS_TASK', '同行不会因为抵达一次就完成。')
         if task.kind == 'ATTACK':
             target = next((value for value in state.actors if value.id == task.target_id), None)
             if target is None or target.alive or report.failure_code:
@@ -181,6 +186,9 @@ def apply_task_report(connection, state, payload, region, seq):
         if site is None or site.remaining < 1:
             raise WorldError("PRECONDITION_FAILED", "到达时资源已耗尽。")
         site.remaining -= 1
+        if site.remaining==0:
+            from server.world.continuity import PERIODS
+            site.regen_tick=state.tick+PERIODS.get(site.kind,10)
         item_id = "item_" + uuid4().hex
         gathered = event(state, "resource_gathered", seq + 1, actor.id, site.id,
                          {"item_id": item_id, "material_id": site.kind, "quantity": 1, "remaining": site.remaining}, [finished.id], witnesses)
@@ -191,6 +199,9 @@ def apply_task_report(connection, state, payload, region, seq):
     task.status = report.status
     actor.task_id = None
     actor.behavior = "idle"
+    if report.status == 'succeeded':
+        from server.world.continuity import arrival
+        events.extend(arrival(connection,state,effect,actor,finished,seq+len(events)))
     if report.status == "succeeded" and effect["action"] in ("COURIER_COLLECT", "COURIER_DELIVER"):
         from server.world.living_world import task_effect
         events.extend(task_effect(connection, state, effect, task, actor, finished, region, seq + len(events)))

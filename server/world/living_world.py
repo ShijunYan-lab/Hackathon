@@ -145,6 +145,8 @@ def initialize(connection, state, region, source):
     for n in range(10):
         _spawn(connection,state,region,meta,source,monster=True,index=n)
     write(connection,state.world_id,meta)
+    from server.world.continuity import initialize as initialize_r7
+    initialize_r7(connection,state,region,source)
 
 
 def _spawn(connection,state,region,meta,source,monster=False,index=0):
@@ -153,19 +155,34 @@ def _spawn(connection,state,region,meta,source,monster=False,index=0):
     center=FORESTS[index%len(FORESTS)] if monster else WAYPOINTS[index%len(WAYPOINTS)]
     tile=free_tile(region,center[0]+rng.randint(-8,8),center[1]+rng.randint(-8,8),[a.tile for a in state.actors if a.alive])
     if monster:
-        appearance='wisp' if rng.random()<.3 else 'wolf'
-        name='\u68ee\u6797\u7cbe\u602a' if appearance=='wisp' else '\u91ce\u72fc'
-        actor=ActorState(id='monster_'+uuid4().hex,kind='monster',name=name,alive=True,hp=22,max_hp=22,armor=0,
-            region_id=region['id'],tile=tile,appearance_key=appearance)
+        from server.world.continuity import inside_safe
+        if inside_safe(state,tile): tile=free_tile(region,110+index*3,95)
+        from server.world.monster_ecology import SPAWN_POOL, get_species
+        appearance = rng.choice(SPAWN_POOL)
+        species = get_species(appearance)
+        actor = ActorState(id='monster_'+uuid4().hex, kind='monster', name=species.title,
+            alive=True, hp=species.hp, max_hp=species.hp, armor=species.armor,
+            region_id=region['id'], tile=tile, appearance_key=appearance)
     else:
         role=rng.choice(['\u6e38\u8361\u4f63\u5175','\u65c5\u884c\u91c7\u836f\u4eba','\u5546\u961f\u4f19\u8ba1','\u8fdc\u65b9\u5b66\u5f92'])
         actor=ActorState(id='npc_'+uuid4().hex,kind='npc',name=rng.choice(['\u827e\u5c14','\u585e\u62c9','\u7c73\u62c9','\u6d1b\u6069','\u5a1c\u7c73'])+str(meta['serial']),alive=True,hp=38,max_hp=38,armor=0,
             region_id=region['id'],tile=tile,appearance_key=rng.choice(['glen','kyra','leah','renard','scott']))
         meta['people'][actor.id]={**persona(state,actor,role),'dynamic':True}
     state.actors.append(actor)
-    weapon=_new_item(state,actor.id,source,rng,quality='common',kind=('staff' if actor.appearance_key=='wisp' else 'sword'))
+    from server.world.monster_ecology import get_species, apply_species, ELITE_POOL, is_hostile_human
+    weapon_kind = get_species(actor.appearance_key).weapon if monster else 'sword'
+    weapon = _new_item(state, actor.id, source, rng, quality='common', kind=weapon_kind)
     if monster:
-        weapon.name='\u5929\u751f\u653b\u51fb';weapon.stats=ItemStats(damage=3,cooldown_s=1.25,armor=0)
+        if meta.get('r7_initialized') and rng.random()<.15:
+            actor.appearance_key = 'elite_' + rng.choice(ELITE_POOL)
+            _new_item(state, actor.id, source, rng, quality='rare')
+        apply_species(actor, weapon)
+        if is_hostile_human(actor.appearance_key):
+            # A hostile humanoid has a grounded private biography but does not become
+            # a civilian or a universally omniscient informant.
+            meta['people'][actor.id] = {
+                **persona(state,actor,'野外敌对势力'), 'dynamic':True, 'hostile':True
+            }
     actor.equipped_item_id=weapon.id
     connection.execute('INSERT OR IGNORE INTO wallets VALUES (?,?,?)',(state.world_id,actor.id,rng.randint(2,8) if monster else rng.randint(12,26)))
     return actor
@@ -197,10 +214,9 @@ def _assert_trade(connection,state,merchant_id):
     player=living_actor(state,state.player_id);merchant=living_actor(state,merchant_id)
     require_near(player,merchant.region_id,merchant.tile,3)
     meta=read(connection,state.world_id)
-    if not meta or not merchant_box(state,merchant_id):
+    if not meta or merchant.kind!='npc':
         raise WorldError('NOT_A_MERCHANT','\u8fd9\u4f4d\u4eba\u7269\u6ca1\u6709\u5728\u552e\u7684\u5546\u54c1\u3002')
     box=merchant_box(state,merchant_id)
-    require_near(player,box['region_id'],Tile(**box['tile']),4)
     relation=_relation(meta,merchant_id,player.id)
     if merchant.behavior=='attacking' or relation['hostility']>=45 or relation['trust']<=-50:
         raise WorldError('TRADE_REFUSED','\u5bf9\u65b9\u56e0\u4e3a\u6b64\u524d\u7684\u51b2\u7a81\u62d2\u7edd\u4ea4\u6613\u3002')
@@ -210,21 +226,24 @@ def _assert_trade(connection,state,merchant_id):
 def _price(item):
     if item.base_type=='consumable':return 6
     if item.base_type=='material':return 3
-    if item.base_type=='armor':return 8+item.stats.armor*6
-    return max(5,round(item.stats.damage*2+{'common':0,'uncommon':6,'rare':15}[item.quality]))
+    if item.base_type=='armor':return 24+item.stats.armor*18
+    return max(12,round(item.stats.damage*5+{'common':4,'uncommon':24,'rare':65}[item.quality]))
 
 
 def shop_view(connection,state,merchant_id):
+    from server.world.continuity import tradable, wallet
     player,merchant,meta=_assert_trade(connection,state,merchant_id)
     box=merchant_box(state,merchant_id)
+    stock_owner=box['id'] if box and distance(merchant.tile,Tile(**box['tile']))<=4 else merchant.id
     discount=int(meta['people'][merchant_id].get('discount',0))
     stock=[{'item':i.model_dump(mode='json'),'price':max(1,math.ceil(_price(i)*(100-discount)/100)),'base_price':_price(i)}
-           for i in state.items if i.owner_id==box['id']]
+           for i in tradable(state,merchant,stock_owner)]
     stamp=json.dumps([state.world_id,merchant_id,stock,discount,state.tick//5],sort_keys=True)
     quote=hashlib.sha256(stamp.encode()).hexdigest()[:24]
-    wallet=connection.execute('SELECT gold FROM wallets WHERE world_id=? AND actor_id=?',(state.world_id,player.id)).fetchone()
-    return {'merchant_id':merchant_id,'container_id':box['id'],'stock':stock,'discount_percent':discount,
-            'quote_id':quote,'gold':wallet[0] if wallet else 0,'expires_tick':(state.tick//5+1)*5}
+    player_wallet=connection.execute('SELECT gold FROM wallets WHERE world_id=? AND actor_id=?',(state.world_id,player.id)).fetchone()
+    sellable=[{'item':i.model_dump(mode='json'),'price':max(1,_price(i)//2)} for i in tradable(state,player)]
+    return {'merchant_id':merchant_id,'container_id':stock_owner,'stock':stock,'sellable':sellable,'merchant_gold':wallet(connection,state,merchant.id),'discount_percent':discount,
+            'quote_id':quote,'gold':player_wallet[0] if player_wallet else 0,'expires_tick':(state.tick//5+1)*5}
 
 
 def bargain(connection,state,merchant_id,source,seq):
@@ -304,6 +323,9 @@ def accept_quest(connection,state,quest_id,seq,source=None,issuer=None):
 
 
 def on_events(connection,state,events,region):
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE name='world_runtime'").fetchone():
+        run=connection.execute('SELECT evaluation_active FROM world_runtime WHERE world_id=?',(state.world_id,)).fetchone()
+        if run and run[0]:return  # Frozen evaluation owns its physical task lifecycle.
     meta=read(connection,state.world_id)
     if not meta:return
     initial=list(events)
@@ -335,8 +357,12 @@ def on_events(connection,state,events,region):
             connection.execute('UPDATE wallets SET gold=gold+? WHERE world_id=? AND actor_id=?',(gold,state.world_id,e.actor_id))
             state.items=[i for i in state.items if i.id!=purse]
             events.append(event(state,'gold_collected',events[-1].event_seq+1,e.actor_id,None,{'amount':gold},[e.id],[e.actor_id]))
+    from server.world.continuity import react
+    react(connection,state,events,region,meta)
     _settle_quests(connection,state,meta,events)
     write(connection,state.world_id,meta)
+    from server.world.continuity import sync_coins
+    sync_coins(connection,state)
 
 
 def _settle_quests(connection,state,meta,events):
@@ -345,6 +371,7 @@ def _settle_quests(connection,state,meta,events):
         participants=[q.get('issuer_id'),q.get('assignee_id'),q.get('recipient_id'),q.get('subject_id')]
         dead=[a for a in state.actors if a.id in participants and not a.alive]
         cancelled=next((e for e in events if e.type in ('task_failed','task_cancelled') and e.facts.get('task_id')==q.get('task_id') and q.get('task_id')),None)
+        if q['kind']=='hunt': dead=[a for a in dead if a.id!=q.get('subject_id')]
         expired=state.tick-int(q.get('created_tick',state.tick))>80
         if dead or cancelled or expired:
             q['status']='failed'
@@ -368,6 +395,11 @@ def _settle_quests(connection,state,meta,events):
             completion=next((e for e in events if e.type=='task_succeeded' and e.actor_id==q.get('subject_id') and e.facts.get('task_id')==q.get('task_id')),None)
         if not completion:continue
         q['status']='completed'
+        if q.get('reconcile'):
+            relation=_relation(meta,q['issuer_id'],state.player_id)
+            relation['hostility']=0;relation['trust']=max(0,relation['trust'])
+            for notice in state.notices:
+                if notice.get('suspect_id')==state.player_id and notice.get('victim_id')==q['issuer_id']:notice['resolved']=True
         if q.get('subject_id') in meta['people']:meta['people'][q['subject_id']]['lost']=False
         amount=meta['quest_escrow'].pop(q['id'],0)
         recipient=q.get('assignee_id') or q['issuer_id']
@@ -392,7 +424,7 @@ def tick(connection,state,region,seq,source_ids=()):
         e=event(state,kind,seq+len(events),actor,target,facts,list(sources),list(witnesses));events.append(e);return e
     # Expire stuck tasks instead of blocking the whole world forever.
     for task in state.tasks:
-        if task.status in ('pending','running') and state.tick-task.started_tick>35:
+        if task.kind!='FOLLOW' and task.status in ('pending','running') and state.tick-task.started_tick>35:
             task.status='failed'
             actor=next((a for a in state.actors if a.id==task.actor_id),None)
             if actor and actor.task_id==task.id:actor.task_id=None;actor.behavior='idle'
@@ -426,6 +458,8 @@ def tick(connection,state,region,seq,source_ids=()):
     if events:
         _settle_quests(connection,state,meta,events)
     write(connection,state.world_id,meta)
+    from server.world.continuity import tick as tick_r7
+    events.extend(tick_r7(connection,state,region,seq+len(events)))
     return events
 
 
@@ -455,7 +489,8 @@ def _create_errand(connection,state,region,meta,emit,rng,preferred_issuer=None,k
     q={'id':qid,'kind':kind,'title':'\u5c0f\u8def\u4e0a\u7684\u6258\u4ed8' if kind=='delivery' else '\u5f52\u9014',
        'issuer_id':issuer.id,'recipient_id':target.id,'subject_id':target.id if kind=='rescue' else None,
        'status':'open','assignee_id':None,'reward':reward,'discovered':False,'source_event_ids':[created.id],'created_tick':state.tick,
-       'destination':target.tile.model_dump() if kind=='delivery' else issuer.tile.model_dump()}
+       'destination':target.tile.model_dump() if kind=='delivery' else issuer.tile.model_dump(),
+       'recipient_last_known_tile':target.tile.model_dump()}
     if kind=='delivery':
         item=rng.choice(stock);item.owner_id=issuer.id;q['item_id']=item.id;q['item_name']=item.name
         # Some errands go to real available companions, others remain for the player.
@@ -514,23 +549,76 @@ EVENT_LABELS={
 
 
 def journal(connection,state,after_seq=0,limit=50):
-    rows=connection.execute('SELECT body FROM events WHERE world_id=? AND seq>? ORDER BY seq',(state.world_id,after_seq))
+    """Curate personal, observed stories; keep raw audit/provenance in SQLite.
+
+    The API includes sequence and source IDs for regression/debug provenance, but
+    the client renders only the narrative fields. Ordinary hits, board opening,
+    ambient chatter, item spam and speculative director proposals are excluded.
+    """
+    from server.world.continuity import quest_view
+    visible = {'world_created','player_downed','quest_accepted','quest_completed',
+               'quest_failed','actor_died','contract_created','contract_activated',
+               'contract_ended','news_discovered','crime_reported'}
+    rows=connection.execute('SELECT body FROM events WHERE world_id=? AND seq>? ORDER BY seq',
+                            (state.world_id,after_seq))
     entries=[]
+    actors={a.id:a for a in state.actors}
+    quests={q['id']:q for q in state.quests}
     for row in rows:
         e=json.loads(row[0])
-        if state.player_id not in e['witness_ids'] or e['type'] not in EVENT_LABELS:continue
-        detail=e['facts'].get('title') or e['facts'].get('explanation') or ''
-        if e['type']=='npc_speech':detail=e['facts'].get('text','')
-        if e['type']=='shop_purchase':detail=e['facts'].get('item_name','')+'  '+str(e['facts'].get('price',0))+' \u91d1\u5e01'
-        if e['type']=='hit_applied':detail='\u5b9e\u9645\u4f24\u5bb3 '+str(e['facts'].get('damage',0))
-        if e['type']=='container_item_taken':detail=next((i.name for i in state.items if i.id==e['facts'].get('item_id')),detail)
-        if e['type']=='gold_collected':detail=str(e['facts'].get('amount',0))+' \u91d1\u5e01'
-        entries.append({'event_id':e['id'],'event_seq':e['event_seq'],'tick':e['tick'],'title':EVENT_LABELS[e['type']],
-                        'text':str(detail)[:600],'caused_by':e['caused_by'],'type':e['type']})
+        if e['type'] not in visible or state.player_id not in e['witness_ids']:continue
+        facts=e.get('facts',{})
+        subject=actors.get(e.get('actor_id'))
+        # Never leak the identity of someone not yet learned through play.
+        def visible_name(actor):
+            if actor is None:return '某个人'
+            if actor.id==state.player_id:return '我'
+            return actor.name if actor.id in state.known_npc_ids else '一位陌生人'
+        kind=e['type']
+        title='旅途见闻'
+        detail=''
+        if kind=='world_created':
+            title='旅途开始'
+            detail='我带着简陋的装备走进了南境，未来的故事还没有定数。'
+        elif kind=='player_downed':
+            title='死里逃生'
+            detail='我在一场危险中倒下。这次经历让我更加警惕周围的威胁。'
+        elif kind in ('quest_accepted','quest_completed','quest_failed'):
+            quest=quests.get(facts.get('quest_id'),{})
+            qtitle=str(facts.get('title') or quest.get('title') or '一项委托')
+            title={'quest_accepted':'接受委托','quest_completed':'完成委托','quest_failed':'委托未竟'}[kind]
+            detail={'quest_accepted':'我接下了','quest_completed':'我完成了','quest_failed':'我没能完成'}[kind]+qtitle+'。'
+        elif kind in ('contract_created','contract_activated','contract_ended'):
+            other=visible_name(subject)
+            title={'contract_created':'同行约定','contract_activated':'踏上同行之路','contract_ended':'同行结束'}[kind]
+            detail={'contract_created':'我和'+other+'谈好了一项同行条件。',
+                    'contract_activated':'约定已履行，'+other+'开始与我同行。',
+                    'contract_ended':'我与'+other+'结束了同行约定。'}[kind]
+            if kind=='contract_created' and isinstance(facts.get('fee'),int) and facts['fee']:
+                detail+='需要支付'+str(facts['fee'])+'枚金币才会正式开始。'
+        elif kind=='actor_died':
+            fallen=actors.get(e.get('target_id'))
+            title='目睹死亡'
+            detail='我目睹'+visible_name(fallen)+'倒下。'
+        elif kind=='news_discovered':
+            title='一则传闻'
+            detail=str(facts.get('text') or '我听到了一件可能重要的事。')
+            if not detail.startswith('听说') and not detail.startswith('传闻'):
+                detail='据别人所说，'+detail
+        elif kind=='crime_reported':
+            title='守卫接到报告'
+            detail='我听见有人向守卫报告附近的袭击。事情的真相尚未证实。'
+        if not detail:continue
+        entries.append({'event_id':e['id'],'event_seq':e['event_seq'],'tick':e['tick'],
+                        'title':title,'text':detail[:450], 'caused_by':e['caused_by'],
+                        'type':kind})
         if len(entries)>limit:break
     page=entries[:limit]
-    return {'entries':page,'has_more':len(entries)>limit,'next_after_seq':page[-1]['event_seq'] if page else after_seq,
-            'quests':[q for q in state.quests if q.get('discovered') or q.get('assignee_id')==state.player_id]}
+    return {'entries':page,'has_more':len(entries)>limit,
+            'next_after_seq':page[-1]['event_seq'] if page else after_seq,
+            'quests':[quest_view(state,q) for q in state.quests if q.get('discovered') or q.get('assignee_id')==state.player_id],
+            'contracts':[v for v in state.contracts if v['employer_id']==state.player_id],
+            'notices':[n for n in state.notices if n.get('discovered') and n['kind']=='incident']}
 
 
 def _defend(connection,state,meta,hit,events,region):
@@ -573,6 +661,9 @@ def _defend(connection,state,meta,hit,events,region):
 
 
 def director_errand(connection,state,proposal,region,seq):
+    if proposal.quest_kind in ('gather','hunt'):
+        from server.world.continuity import director_request
+        return director_request(connection,state,proposal,region,seq)
     meta=read(connection,state.world_id)
     if not meta:raise WorldError('FEATURE_DISABLED','Living-world tasks are not enabled here.')
     if sum(q['status'] in ('open','active') for q in state.quests)>=ACTIVE_QUEST_LIMIT:

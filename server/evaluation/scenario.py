@@ -17,4 +17,7 @@ class TransportScenario(DTO):
     destination: Tile = Field(default_factory=lambda: Tile(x=20.5, y=8.5))
     threat: Tile = Field(default_factory=lambda: Tile(x=14.5, y=8.5))
     guard_consents: bool = True
+    guard_damage: int = Field(default=14, ge=1, le=100)
+    guard_hp: int = Field(default=60, ge=1, le=200)
+    guard_armor: int = Field(default=2, ge=0, le=20)
 

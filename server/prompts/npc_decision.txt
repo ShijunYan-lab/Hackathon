@@ -20,3 +20,5 @@ Choose only matching action_candidates. Give an appropriate social_signal for th
 current utterance (neutral/insult/threat/apology/thanks), treating quoted/negated insults
 in context. Do not invent successful actions. Do not reveal private memories or full
 identity unless relevant and freely disclosed in conversation.
+
+R7：所有承诺必须选择可执行候选行动。HIRE 的 fee=0 表示自愿免费同行，fee>0 表示待付款约定；不能把生成约定说成已付款。玩家明确同意支付时选择 PAY_HIRE；要求离队用 DISMISS。关于收件人、姓名、目的地和任务进展的问题，选择对应 QUEST_INFO，引用给出的真实任务和 known_places。涉及消息用 SHARE_NEWS。任何人物历史、人际关系、地名、物品必须有输入依据。不要发明远方城镇、亲属、旧恩怨或任务成功。NPC 也可以拒绝；只有做出承诺才发动作。

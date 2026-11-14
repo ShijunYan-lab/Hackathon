@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $python = Join-Path $root '.venv\Scripts\python.exe'
+$portable = Join-Path $root '.runtime\python\python.exe'
+if (Test-Path -LiteralPath $portable) { $python = $portable; $env:PYTHONHOME = Split-Path -Parent $portable }
 if (-not (Test-Path $python)) { throw 'Run Setup_Game.bat first.' }
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD = '1'
 $env:LLM_API_KEY = ''
@@ -18,6 +20,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Protocol examples failed.' }
 & $python -m tools.check_evaluation_contracts
 if ($LASTEXITCODE -ne 0) { throw 'Evaluation examples failed.' }
 if (-not $GodotPath -and (Test-Path 'runtime/godot-path.txt')) { $GodotPath = (Get-Content 'runtime/godot-path.txt' -Raw).Trim() }
+if (-not $GodotPath -and (Test-Path '.runtime\godot\Godot_v4.5.2-stable_win64_console.exe')) { $GodotPath = (Resolve-Path '.runtime\godot\Godot_v4.5.2-stable_win64_console.exe').Path }
 if (-not $GodotPath) { Write-Warning 'Python tests passed. Godot was NOT checked. Rerun with -GodotPath or launch Start_Game.bat and perform the manual checklist.'; exit 0 }
 if (-not (Test-Path -LiteralPath $GodotPath)) { throw 'GodotPath does not exist.' }
 New-Item -ItemType Directory -Path 'runtime' -Force | Out-Null

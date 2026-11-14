@@ -44,7 +44,8 @@ def edit(app,s,fn):
 
 def test_new_game_modest_gear_and_auto_save(game):
     c,app,s=game
-    own=[i for i in s['items'] if i['owner_id']==s['player_id']]
+    # R7 exposes ledger-backed coins as an inventory item; starting gear stays modest.
+    own=[i for i in s['items'] if i['owner_id']==s['player_id'] and i['material_id']!='currency']
     assert {i['base_type'] for i in own}=={'sword','armor'} and len(own)==2
     assert next(i for i in own if i['base_type']=='sword')['stats']['damage']==4
     assert s['appearance']=='female' and s['known_npc_ids']==[]
@@ -56,7 +57,7 @@ def test_new_game_modest_gear_and_auto_save(game):
 
 def test_population_and_containers_are_walkable_and_stock_not_worn(game):
     c,app,s=game
-    assert sum(a['kind']=='npc' for a in s['actors'])==19
+    assert sum(a['kind']=='npc' for a in s['actors'])==23  # R7 adds four settlement guards.
     assert sum(a['kind']=='monster' for a in s['actors'])==10
     assert len(s['containers'])>=10
     region=app.state.region;blocked={tuple(x) for x in region['blocked_tiles']}
@@ -233,7 +234,7 @@ def test_journal_is_source_linked_and_private_memories_are_not_returned(game):
     c,app,s=game;npc=merchant(s);s=near(c,s,s['player_id'],npc['tile'])
     s=speech(c,s,npc,'\u4f60\u53eb\u4ec0\u4e48\u540d\u5b57').json()['data']['state']
     page=c.get(route(s)+'/journal?limit=1').json()['data']
-    assert len(page['entries'])==1 and page['has_more']
+    assert len(page['entries'])==1 and not page['has_more']  # Routine speech is no longer journal noise.
     assert not any(k in page for k in ('memories','personality','beliefs','relationships'))
     second=c.get(route(s)+'/journal?after_seq='+str(page['next_after_seq'])).json()['data']
     assert all(v['event_seq']>page['next_after_seq'] for v in second['entries'])

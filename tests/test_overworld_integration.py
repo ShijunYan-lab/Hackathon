@@ -24,7 +24,7 @@ def command(client, state, kind, payload):
 def test_authored_map_and_limited_agent_knowledge(world):
     client, app, state = world
     assert state['current_region_id'] == 'overworld'
-    assert len(state['actors']) == 30
+    assert len(state['actors']) == 34  # Existing population plus four R7 guards.
     assert len({actor['appearance_key'] for actor in state['actors'][1:16]}) == 15
     region = json.loads((ROOT / 'game/maps/backend_world.json').read_text(encoding='utf-8'))['regions'][0]
     assert (region['width_tiles'],region['height_tiles']) == (320,224)

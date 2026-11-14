@@ -1,3 +1,7 @@
+# R7 整合说明
+
+本轮用户已明确授权跨 A/B/C/D 完成最后四轮需求。先读 README_R7.md、docs/R7_HANDOFF.md 与 docs/R7_VALIDATION.md。既有模块边界与评测公平性继续有效；不把规则策略说成实时模型。
+
 # R6 整合说明（先读）
 
 当前代码已经做过一次跨 A/B/C/D 的整合。开工前请先读 `README_R6.md`、

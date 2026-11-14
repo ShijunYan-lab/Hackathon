@@ -36,6 +36,8 @@ def apply_item_command(state: StateView, kind: str, payload: dict, seq: int) -> 
     item = next((item for item in state.items if item.id == payload["item_id"]), None)
     if item is None:
         raise WorldError("ITEM_NOT_FOUND", "物品不存在。", 404)
+    if item.material_id=='currency':
+        raise WorldError('CURRENCY_LEDGER', '金币通过交易、报酬和付款转移。')
     previous_owner = item.owner_id
     target = actor
     if kind == "PICKUP":

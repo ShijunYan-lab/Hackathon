@@ -132,7 +132,7 @@ func execute_task(task: Dictionary) -> void:
 	var kind: String = str(task.get("kind", ""))
 	if task_id.is_empty() or task_id == current_task_id:
 		return
-	if kind not in ["MOVE", "ESCORT", "ATTACK", "FLEE"]:
+	if kind not in ["MOVE", "ESCORT", "ATTACK", "FLEE", "FOLLOW"]:
 		return
 	if task.get("target_region_id") != null and str(task.get("target_region_id")) != region_id:
 		return
@@ -154,7 +154,7 @@ func _execute_active_task(delta: float) -> void:
 	match str(active_task.get("kind", "")):
 		"MOVE", "FLEE":
 			_move_to_position(delta)
-		"ESCORT":
+		"ESCORT", "FOLLOW":
 			_escort(delta)
 		"ATTACK":
 			var victim = _actor_by_id(str(active_task.get("target_id", "")))
@@ -203,6 +203,17 @@ func _move_toward(delta: float, destination: Vector2, stop_distance: float) -> v
 					waypoint = path_points[path_index] if path_index < path_points.size() else destination
 	var before: Vector2 = global_position
 	var motion: Vector2 = (waypoint - global_position).normalized()
+	# The terrain path is static. Steer around living bodies so couriers and
+	# escorts can pass one another instead of treating a crowd as a solid wall.
+	var steering := Vector2.ZERO
+	for other in get_tree().get_nodes_in_group("world_actors"):
+		if other==self or not other.alive or other.region_id!=region_id: continue
+		if other.global_position.distance_to(destination)<32: continue
+		var away:Vector2=global_position-other.global_position
+		var separation:float=away.length()
+		if separation>0.1 and separation<34 and motion.dot(-away.normalized())>0.2:
+			steering+=away.normalized()*(1.0-separation/34.0)+Vector2(-motion.y,motion.x)*0.8
+	motion=(motion+steering).normalized()
 	velocity = motion * move_speed + knockback_velocity
 	move_and_slide()
 	decay_knockback(delta)
@@ -221,7 +232,7 @@ func _escort(delta: float) -> void:
 	if escorted == null or not escorted.alive:
 		_finish_task("failed", "escort_target_missing")
 		return
-	var enemy = _nearest_monster(125.0)
+	var enemy = _nearest_monster(240.0)
 	if enemy != null:
 		var item: Dictionary = active_weapon()
 		var stop_px: float = 95.0 if active_weapon_slot == "ranged" and not item.is_empty() else 28.0
@@ -229,7 +240,7 @@ func _escort(delta: float) -> void:
 		_attack_target(enemy)
 	else:
 		_move_toward(delta, escorted.global_position + Vector2(23, 15), 30.0)
-	if bool(escorted.get("completed_move")) and global_position.distance_to(escorted.global_position) < 75.0:
+	if active_task.get("kind") != "FOLLOW" and bool(escorted.get("completed_move")) and global_position.distance_to(escorted.global_position) < 75.0:
 		_finish_task("succeeded", "")
 
 func _actor_by_id(actor_id: String):

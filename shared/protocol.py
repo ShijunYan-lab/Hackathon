@@ -110,6 +110,8 @@ class ItemStats(DTO):
     armor: int = Field(ge=0, le=100)
 
 class ItemState(DTO):
+    quantity: int = Field(default=1, ge=1)
+    durability: int = Field(default=100, ge=0, le=100)
     id: str
     name: str
     base_type: Literal["sword", "axe", "hammer", "bow", "crossbow", "staff", "material", "consumable", "armor"]
@@ -184,6 +186,8 @@ class Task(DTO):
     source_event_ids: list[str]
 
 class SiteView(DTO):
+    capacity: int = Field(default=5, ge=1)
+    regen_tick: int = Field(default=0, ge=0)
     id: str
     kind: str
     region_id: str
@@ -191,6 +195,9 @@ class SiteView(DTO):
     remaining: int = Field(ge=0)
 
 class StateView(DTO):
+    contracts: list[dict[str, Any]] = Field(default_factory=list)
+    notices: list[dict[str, Any]] = Field(default_factory=list)
+    safe_zones: list[dict[str, Any]] = Field(default_factory=list)
     world_id: str
     seed: int
     tick: int = Field(ge=0)
@@ -221,7 +228,8 @@ class Event(DTO):
 
 Action = Literal["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO",
                  "PROPOSE_RELATION", "RESPOND_PROPOSAL", "ATTACK", "FLEE",
-                 "CRAFT", "JOIN_ORG", "LEAVE_ORG", "OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME"]
+                 "CRAFT", "JOIN_ORG", "LEAVE_ORG", "OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME",
+                 "HIRE", "PAY_HIRE", "DISMISS", "QUEST_INFO", "SHARE_NEWS", "PROPOSE_DELIVERY"]
 class Intent(DTO):
     action: Action
     target_id: str | None = None

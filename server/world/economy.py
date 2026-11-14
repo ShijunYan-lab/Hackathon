@@ -57,6 +57,7 @@ def offer(connection, state, body, seq, sources=()):
         item = next((item for item in state.items if item.id == body.item_id and item.owner_id == actor.id), None)
         if item is None:
             raise WorldError('ITEM_NOT_OWNED', '卖方没有该物品。')
+        if item.material_id=='currency':raise WorldError('CURRENCY_LEDGER','金币不能作为普通商品复制或交易。')
     else:
         organization(state, body.org_id, actor.id)
         if body.kind == 'relation':

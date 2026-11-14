@@ -102,7 +102,7 @@ class DirectorProposal(DTO):
     location_id: str | None = None
     resource: str = 'iron'
     quantity: int = Field(default=1, ge=1, le=20)
-    quest_kind: Literal['delivery','rescue'] = 'delivery'
+    quest_kind: Literal['delivery','rescue','gather','hunt'] = 'delivery'
     npc_name: str = Field(default='迁入旅人', min_length=1, max_length=30)
 
 

@@ -22,3 +22,8 @@ class ConsumableUse(VersionedRequest):
 
 class QuestAccept(VersionedRequest):
     quest_id: str
+
+class WorldInteraction(VersionedRequest):
+    action: Literal['GATHER', 'BOARD', 'PAY_HIRE', 'DISMISS', 'SUBMIT', 'GIVE_GOLD', 'REPAIR']
+    target_id: str
+    amount: int = Field(default=1, ge=1, le=9999)

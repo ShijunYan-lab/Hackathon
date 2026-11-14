@@ -44,6 +44,7 @@ func _ready()->void:
 	actions=Control.new()
 	book.add_child(actions)
 	inventory=ItemList.new()
+	inventory.fixed_icon_size=Vector2i(27,27)
 	inventory.position=Vector2(18,45)
 	inventory.size=Vector2(242,190)
 	style_control(inventory)
@@ -86,6 +87,20 @@ func draw_hud()->void:
 	if notice_timer>0:
 		panel(Rect2(55,76,690,27))
 		text(Vector2(67,94),message.left(63),11,GOLD)
+	if not dialog_open and not panel_open:
+		for node in world.resource_nodes.values():
+			if node.position.distance_to(world.player.position)<60:
+				var kind:String=str(node.data.get("kind",""))
+				var caption:String=str({"herb":"草药","wood":"木材","iron":"铁矿","stone":"石头","board":"告示牌"}.get(kind,"资源"))
+				var state_text:String="查看" if kind=="board" else ("采集" if int(node.data.get("remaining",0))>0 else "已采空，等待再生")
+				panel(Rect2(245,375,310,25))
+				text(Vector2(255,392),"E "+state_text+" · "+caption,12,GOLD)
+				break
+
+		if world.nearby_prop != null and world.near_npc == null:
+			var prop_info:Dictionary = world.nearby_prop.get("data")
+			panel(Rect2(252,346,298,24))
+			text(Vector2(262,363),"E 查看 · "+str(prop_info.get("label", "场景物件")),11,GOLD)
 
 func draw_dialogue_frame(_size:Vector2)->void:
 	panel(Rect2(52,242,696,194),Color("27231e"))
@@ -95,7 +110,7 @@ func draw_dialogue_frame(_size:Vector2)->void:
 	text(Vector2(668,268),"Esc 关闭",10,MUTED)
 	panel(Rect2(68,270,92,127),Color("1d1c1b"))
 	if is_instance_valid(current_npc):
-		canvas.draw_texture_rect_region(current_npc.portrait,Rect2(73,277,82,110),Rect2(0,0,48,64))
+		canvas.draw_texture_rect_region(current_npc.portrait,Rect2(73,277,82,110),Rect2(0,0,minf(64.0,float(current_npc.portrait.get_width())),minf(64.0,float(current_npc.portrait.get_height()))))
 	text(Vector2(80,416),"思索中……" if pending else ("NPC · "+world.model_mode if current_npc else "地点手札"),10,MUTED)
 
 func show_npc(npc:Node2D)->void:
@@ -179,7 +194,7 @@ func render_inventory()->void:
 	item_ids.clear()
 	for item in world.player.inventory_items:
 		item_ids.append(str(item.id))
-		inventory.add_item(str(item.name)+("  · 已装备" if item.id in world.player.equipment_slots.values() else "")+"   伤害 "+str(int(item.stats.damage)))
+		inventory.add_item(str(item.name)+(" ×"+str(item.get("quantity",1)) if int(item.get("quantity",1))>1 else "")+("  · 已装备" if item.id in world.player.equipment_slots.values() else "")+"   伤害 "+str(int(item.stats.damage)),preload("res://assets/item_art.gd").item_texture(item))
 	if not item_ids.is_empty():
 		var index:=maxi(0,item_ids.find(chosen))
 		chosen=item_ids[index]
@@ -192,18 +207,29 @@ func render_inventory()->void:
 	button("组织 / 制作",18,289,130,show_economy)
 	button("保存旅途",162,289,115,world.save_game)
 	button("读取存档",290,289,115,world.load_game)
+	button("收起行囊",430,289,115,close_panel)
+	button("维修武器",550,289,90,func(): world.api.call_api("interact","/v1/worlds/{world}/interact",{"action":"REPAIR","target_id":chosen},true))
 	if not item_ids.is_empty(): select_item(maxi(0,item_ids.find(chosen)))
 
 func select_item(index:int)->void:
 	if index<0 or index>=item_ids.size(): return
 	chosen=item_ids[index]
 	var item:Dictionary=world.player.find_item(chosen)
-	weapon_portrait.show_weapon(str(item.get("base_type","")))
+	weapon_portrait.show_item(item)
 	var descriptions:={"sword":"单手直剑，锋刃轻巧。", "axe":"宽刃战斧，适合横扫。", "hammer":"铁制战锤，重击破甲。", "bow":"木制猎弓，远处制敌。", "crossbow":"机械轻弩，射程更远。", "staff":"镶嵌紫晶的施法杖。"}
 	body.text=str(item.get("name","物品"))+"\n\n"+str(descriptions.get(item.get("base_type",""),"旅途中取得的物品。"))+"\n\n伤害  %d\n间隔  %.2f 秒\n护甲  %d\n\n钱币  %d"%[int(item.stats.damage),float(item.stats.cooldown_s),int(item.stats.armor),int(world.economy.get("wallets",{}).get(world.player.entity_id,0))]
 
+	body.add_text("\n\n耐久："+str(item.get("durability",100))+" / 100（低于30时武器伤害减半）")
+
 func item_action(kind:String)->void:
 	if chosen.is_empty() or not world.api.idle(): return
+	var item: Dictionary = world.player.find_item(chosen)
+	if item.get("material_id")=="currency":
+		if kind=="GIVE" and is_instance_valid(world.near_npc):
+			world.checkpoint(true)
+			world.api.call_api("interact","/v1/worlds/{world}/interact",{"action":"GIVE_GOLD","target_id":world.near_npc.entity_id,"amount":int(price.value)},true)
+		else: notice("金币通过付款与交易使用；赠送数量在右侧输入。")
+		return
 	var payload:={"actor_id":world.player.entity_id,"item_id":chosen}
 	if kind in ["GIVE","offer"]:
 		if not is_instance_valid(world.near_npc): return
@@ -291,7 +317,9 @@ func show_profile(data:Dictionary)->void:
 
 func _input(event:InputEvent)->void:
 	if panel_open and event.is_action_pressed("ui_cancel"):
-		close_panel()
+		if panel_kind=="economy": render_inventory()
+		elif panel_kind in ["profile","report"]: open_evaluation()
+		else: close_panel()
 		get_viewport().set_input_as_handled()
 	else: super._input(event)
 

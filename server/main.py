@@ -23,7 +23,7 @@ from server.evaluation.scenario import TransportScenario
 from server.evaluation.service import Evaluations
 from shared.evaluation_protocol import EvaluationCreateRequest, EvaluationRunRequest, EvaluationRollbackRequest
 from shared.world_protocol import OfferRequest, CraftRequest, SupplyRequest
-from shared.play_protocol import ModelConfig, ShopBuy, ContainerTake, ConsumableUse, QuestAccept
+from shared.play_protocol import ModelConfig, ShopBuy, ContainerTake, ConsumableUse, QuestAccept, WorldInteraction
 from server.world.play_service import PlayService
 from server.world.ambient import AmbientTurns
 from server.world.economy import EconomyAPI
@@ -148,7 +148,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup",
                              "pickup", "equip", "give", "story", "dialogue", "task_report", "advance", "director",
                              'save', 'load', 'evaluation', 'learning', 'rollback', 'offers', 'craft', 'migration', 'shop', 'containers', 'quests', 'journal', 'heartbeat', 'session_model_config'],
-            "play_revision": "r6", "model_connected": mode == "live", "map_fixture": app.state.map_fixture,
+            "play_revision": "r7", "model_connected": mode == "live", "map_fixture": app.state.map_fixture,
               "debug_views": allow_debug,
               "director_model": getattr(app.state.turns.provider, 'model', None),
               "director_configured": app.state.turns.provider is not None,
@@ -217,6 +217,14 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post('/v1/worlds/{world_id}/quests/accept')
     def accept_quest(world_id:str,body:QuestAccept):
         return app.state.play.mutate(world_id,body,'accept_quest')
+
+    @app.post('/v1/worlds/{world_id}/shops/{npc_id}/sell')
+    def sell(world_id:str,npc_id:str,body:ShopBuy):
+        return app.state.play.mutate(world_id,body,'sell',npc_id)
+
+    @app.post('/v1/worlds/{world_id}/interact')
+    def world_interact(world_id:str,body:WorldInteraction):
+        return app.state.play.mutate(world_id,body,'interact')
 
     @app.get('/v1/worlds/{world_id}/journal')
     def journal(world_id:str,after_seq:int=Query(default=0,ge=0),limit:int=Query(default=50,ge=1,le=100)):

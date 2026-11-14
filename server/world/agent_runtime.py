@@ -170,6 +170,9 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
                     'description':'退出自己所属的组织。'})
     from server.world import living_world as life
     personality = life.identity(connection, state, npc.id)
+    if personality.get('dynamic'):
+        # A reused sprite is not a reused biography, home, family or personal history.
+        template={}
     life_enabled = bool(personality)
     if life_enabled:
         player = next(a for a in state.actors if a.id == state.player_id)
@@ -180,24 +183,30 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
                     candidates.append({'action':action,'target_id':player.id,'params':{},'description':'Show actual stock or request a memory-based price quote. Never invent prices.'})
             for quest in state.quests:
                 if quest.get('issuer_id') == npc.id and quest['status'] == 'open':
-                    entities.append({'id':quest['id'],'kind':'quest',**quest})
+                    from server.world.continuity import quest_view
+                    entities.append({'id':quest['id'],'kind':'quest',**quest_view(state,quest)})
                     candidates.append({'action':'ACCEPT_QUEST','target_id':quest['id'],'params':{},'description':'Only if the player explicitly agrees to take this errand.'})
                 if quest.get('subject_id') == npc.id and quest['status'] == 'active' and quest.get('assignee_id') == player.id:
                     candidates.append({'action':'GUIDE_HOME','target_id':player.id,'params':{},'description':'Accept directions and actually walk home when the player offers help.'})
+    if life_enabled:
+        from server.world.continuity import candidates as r7_candidates
+        utterance=next((e.facts.get('text','') for e in reversed(extra_events) if e.type=='speech'),'')
+        r7_candidates(connection,state,npc,entities,candidates,utterance)
     return AgentContext(npc_id=npc.id, world_version=state.world_version,
         identity={"id": npc.id, "name": npc.name, "org_ids": npc.org_ids,
                   "region_id": npc.region_id, "tile": npc.tile.model_dump(), "hp": npc.hp,
                   "alive": npc.alive, "role": personality.get("role", template.get("role", "旅人")),
                   "personality": personality.get("personality", {}), "relationships": personality.get("relations", {}),
-                  "living_world": life_enabled, "can_trade": bool(life.merchant_box(state, npc.id)),
-                  "home_tile": template.get("tile"), "recent_dialogue": recent_dialogue,
+                  "living_world": life_enabled, "can_trade": life_enabled,
+                  "home_tile": personality.get('home_tile',template.get('tile')),
+                  "known_places": __import__('server.world.continuity',fromlist=['known_places']).known_places(npc, personality) if life_enabled else [], "recent_dialogue": recent_dialogue,
                   "action_candidates": candidates,
                   "residence": template.get("place", "这片土地"),
                   "conduct": "在自己的工作地点附近活动。除非玩家明确请求、采集或自卫，不要跟随玩家前往出生点。"},
-        goals=stored["goals"] or template.get("goals", []), own_inventory=own_inventory,
+        goals=stored["goals"] or template.get("goals", []) or (["维持生计、照料伤势，依据真实经历选择可信的合作伙伴。"] if life_enabled else []), own_inventory=own_inventory,
         known_entities=entities, known_events=[*known, *extra_events], memories=selected_memories,
         allowed_actions=["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO", 'PROPOSE_RELATION',
-                         'RESPOND_PROPOSAL', 'CRAFT', 'JOIN_ORG', 'LEAVE_ORG'] + (["OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME"] if life_enabled else []),
+                         'RESPOND_PROPOSAL', 'CRAFT', 'JOIN_ORG', 'LEAVE_ORG'] + (["OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME", 'HIRE','PAY_HIRE','DISMISS','QUEST_INFO','SHARE_NEWS','PROPOSE_DELIVERY'] if life_enabled else []),
         policy=stored["policy"], policy_version=stored["version"])
 
 
@@ -337,6 +346,16 @@ class AgentRuntime:
                 for effect in events:
                     if effect.type == "price_negotiated":
                         decision.reply = effect.facts["explanation"]
+                    if effect.type == 'trade_opened':
+                        decision.reply = '可以，看看我现在愿意交易的物品吧。买卖价格以眼前的实际报价为准。'
+                if intent_status != 'rejected':
+                    from server.world.continuity import quest_view
+                    for effect in events:
+                        if effect.type in ('contract_created','contract_activated','contract_ended','news_discovered'):
+                            decision.reply=effect.facts.get('text',decision.reply)
+                        if effect.type=='quest_information':
+                            clues=[quest_view(state,q) for q in state.quests if q['id'] in effect.facts.get('quest_ids',[])]
+                            decision.reply=effect.facts.get('text') or '\n'.join(q.get('description','')+' '+q.get('clue','') for q in clues) or '眼下没有需要帮忙的事。'
                 if intent_status == "rejected":
                     decision.reply += "\n[这次行动未执行：请检查对方意愿、距离和资源。]"
                 reply_event = event(state, "npc_speech", seq + 1 + len(events), body.npc_id, state.player_id,

@@ -97,6 +97,14 @@ class Evaluations:
             merchant.tile = self.scenario.start.model_copy()
             # Distinct footprints: physical NPCs no longer walk through each other.
             guard.tile = self.scenario.start.model_copy(update={'y':self.scenario.start.y+1})
+            # Freeze a real melee guard loadout in S0. A random ranged weapon must
+            # not silently change the physical task between different new sessions.
+            guard.max_hp=self.scenario.guard_hp;guard.hp=self.scenario.guard_hp
+            guard.armor=self.scenario.guard_armor
+            guard_weapon=next(i for i in state.items if i.id==guard.equipped_item_id)
+            guard_weapon.base_type='sword';guard_weapon.name='护卫长剑'
+            guard_weapon.stats.damage=self.scenario.guard_damage
+            guard_weapon.stats.cooldown_s=.65
             # Dynamic actor identity; threat and gear are frozen once in S0.
             threat_id = 'monster_' + uuid4().hex
             threat = ActorState(id=threat_id, name='路途威胁', kind='monster', alive=True,
@@ -104,6 +112,7 @@ class Evaluations:
                 appearance_key='monster')
             weapon = state.items[1].model_copy(deep=True)
             weapon.id, weapon.owner_id, weapon.name = 'item_' + uuid4().hex, threat_id, '威胁武器'
+            weapon.base_type='sword'
             weapon.stats.damage, weapon.stats.armor, weapon.stats.cooldown_s = 12, 0, .5
             threat.equipped_item_id = weapon.id
             state.actors.append(threat)
@@ -152,7 +161,8 @@ class Evaluations:
                     async with self.turns.agents.gateway.semaphore:
                         return await asyncio.to_thread(provider, context.model_copy(deep=True), profile.model_copy(deep=True))
                 raw = await asyncio.wait_for(invoke(), 8)
-                return TransportChoice.model_validate(raw), 'live'
+                mode='fallback' if provider.__module__=='server.agents.transport_learning' else 'live'
+                return TransportChoice.model_validate(raw), mode
             except Exception:
                 pass
         strategy = max(context.available_strategies, key=lambda value: (profile.values[value], value == 'direct'))
@@ -398,7 +408,7 @@ class Evaluations:
                         return await asyncio.to_thread(provider, profile.model_copy(deep=True), outcome.model_copy(deep=True))
                 raw = await asyncio.wait_for(invoke(), 8)
                 update = validate_update(profile, outcome, raw)
-                mode = 'live'
+                mode = 'fallback' if provider.__module__=='server.agents.transport_learning' else 'live'
             except Exception:
                 rejection = 'PROVIDER_FAILED_OR_INVALID_UPDATE'
         if update is None:

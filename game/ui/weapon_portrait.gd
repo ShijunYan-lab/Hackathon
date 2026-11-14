@@ -1,11 +1,16 @@
 extends Control
 ## Hand-drawn native Godot pixel illustrations, independent of tiny world icons.
+var item_texture: Texture2D
 var kind:="sword"
 const OUT=Color("16131b")
 const STEEL=Color("718191")
 const EDGE=Color("e1e5d5")
 const GOLD=Color("b49b63")
 const WOOD=Color("6b4938")
+func show_item(item:Dictionary)->void:
+	item_texture=preload("res://assets/item_art.gd").item_texture(item)
+	show_weapon(str(item.get("base_type","")))
+
 func show_weapon(value:String)->void:
 	kind=value
 	queue_redraw()
@@ -19,6 +24,9 @@ func shaft(x:float,y:float,w:float,h:float)->void:
 func _draw()->void:
 	draw_rect(Rect2(Vector2.ZERO,size),Color("19191b"))
 	draw_rect(Rect2(Vector2.ZERO,size),Color("776246"),false,1)
+	if item_texture:
+		draw_texture_rect(item_texture,Rect2(Vector2(12,20),size-Vector2(24,40)),false)
+		return
 	var scale_factor:=minf(size.x/128,size.y/160)
 	draw_set_transform((size-Vector2(128,160)*scale_factor)/2,0,Vector2.ONE*scale_factor)
 	for i in range(10): rect(11+i*11,12,1,136,Color("211f22"))

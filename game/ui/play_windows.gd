@@ -15,10 +15,12 @@ var model_input: LineEdit
 var key_input: LineEdit
 var known_config: Dictionary = {}
 var pending_start: Dictionary = {}
+var start_when_connected: bool = false
 var pending_save: String = ""
 var after_save: String = ""
 var selected_item: String = ""
 var trade: Dictionary = {}
+var selected_sale: String = ""
 var chest: Dictionary = {}
 var page_after: int = 0
 var next_after: int = 0
@@ -140,6 +142,7 @@ func open_title() -> void:
 	var buttons = row()
 	button(buttons, "\u65b0\u6e38\u620f", start_new)
 	button(buttons, "\u8bfb\u53d6\u5b58\u6863", request_saves)
+	button(buttons, "安装/修复运行环境", func(): world.install_local_runtime(), OS.get_name() != "Windows")
 	button(buttons, "\u9000\u51fa", func(): get_tree().quit())
 	status_label = label("\u6b63\u5728\u68c0\u67e5\u672c\u5730\u4e16\u754c\u670d\u52a1\u2026")
 
@@ -155,6 +158,18 @@ func model_fields() -> void:
 	label("\u652f\u6301 OpenAI-compatible chat/completions\uff1b\u4e0d\u4fdd\u5b58\u5bc6\u94a5\u5230\u5b58\u6863\u3002").add_theme_font_size_override("font_size", 11)
 
 func start_new() -> void:
+	if not world.api.connected:
+		# Remember the player's click. Once the health handshake succeeds,
+		# continue creation without discarding the name or API key fields.
+		start_when_connected = true
+		if world.local_setup_pending:
+			notice("正在安装运行环境；安装完成并连接后将自动开始新游戏。")
+		elif world.local_starting:
+			notice("本地世界服务正在启动；连接成功后将自动开始新游戏。")
+		else:
+			notice("本地世界服务未连接。请启动 Start_Game.bat 或点击安装/修复运行环境；连接后将自动继续。")
+		return
+	start_when_connected = false
 	if not world.api.connected or not world.api.idle():
 		notice("\u4e16\u754c\u670d\u52a1\u5c1a\u672a\u5c31\u7eea\uff0c\u8bf7\u5148\u542f\u52a8\u540e\u7aef\u6216\u7b49\u5f85\u5f53\u524d\u8bf7\u6c42\u5b8c\u6210\u3002")
 		return
@@ -241,26 +256,54 @@ func save_and_leave(destination: String) -> void:
 	after_save = destination
 	world.save_game()
 
+func item_icon(item: Dictionary) -> Texture2D:
+	return preload("res://assets/item_art.gd").item_texture(item)
+
 func show_shop(data: Dictionary) -> void:
-	trade = data
-	selected_item = ""
-	rebuild("shop", "\u5546\u4eba\u7684\u8d27\u7bb1")
-	label("\u91d1\u5e01 %d  |  \u672c\u6b21\u4f18\u60e0 %d%%  |  \u62a5\u4ef7\u7531\u5b9e\u9645\u5e93\u5b58\u548c\u4ea4\u5f80\u8bb0\u5f55\u51b3\u5b9a" % [int(data.gold), int(data.discount_percent)])
-	var list = ItemList.new()
-	list.custom_minimum_size = Vector2(668, 244)
-	column.add_child(list)
-	for listing in data.get("stock", []):
-		list.add_item(str(listing.item.name) + "  |  " + rarity(str(listing.item.quality)) + "  |  " + str(listing.price) + " \u91d1\u5e01")
-	list.item_selected.connect(func(index: int): selected_item = str(trade.stock[index].item.id))
-	var buttons = row()
-	button(buttons, "\u8d2d\u4e70\u9009\u4e2d\u7269\u54c1", buy_selected)
-	button(buttons, "\u5237\u65b0\u62a5\u4ef7", func(): world.api.call_api("shop", "/v1/worlds/{world}/shops/" + str(trade.merchant_id)))
-	button(buttons, "\u8fd4\u56de\u4ea4\u8c08", func():
-		close()
-		var npc = world.actors.get(str(trade.merchant_id))
-		if is_instance_valid(npc) and npc.alive: world.hud.show_npc(npc))
-	button(buttons, "\u6536\u8d77", close)
-	status_label = label("")
+	trade=data
+	selected_item=""
+	selected_sale=""
+	rebuild("shop","交易")
+	label("你的金币 %d  |  对方金币 %d  |  议价优惠 %d%%" % [int(data.gold),int(data.get("merchant_gold",0)),int(data.discount_percent)])
+	var columns:=row()
+	var purchase_column:=VBoxContainer.new()
+	purchase_column.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	columns.add_child(purchase_column)
+	label("对方愿意出售的物品",purchase_column)
+	var purchases:=ItemList.new()
+	purchases.custom_minimum_size=Vector2(320,215)
+	purchases.fixed_icon_size=Vector2i(24,24)
+	purchase_column.add_child(purchases)
+	for listing in data.get("stock",[]):
+		purchases.add_item(str(listing.item.name)+" · "+str(int(listing.price))+" 金币",item_icon(listing.item))
+	purchases.item_selected.connect(func(index:int): selected_item=str(trade.stock[index].item.id))
+	var sale_column:=VBoxContainer.new()
+	sale_column.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	columns.add_child(sale_column)
+	label("你可以出售的物品",sale_column)
+	var sales:=ItemList.new()
+	sales.custom_minimum_size=Vector2(320,215)
+	sales.fixed_icon_size=Vector2i(24,24)
+	sale_column.add_child(sales)
+	for listing in data.get("sellable",[]):
+		sales.add_item(str(listing.item.name)+" · "+str(int(listing.price))+" 金币",item_icon(listing.item))
+	sales.item_selected.connect(func(index:int): selected_sale=str(trade.sellable[index].item.id))
+	var buttons:=row()
+	button(buttons,"购买选中物品",buy_selected)
+	button(buttons,"出售选中物品",func():
+		if not selected_sale.is_empty() and world.api.idle():
+			world.api.call_api("shop_sell","/v1/worlds/{world}/shops/"+str(trade.merchant_id)+"/sell",{"item_id":selected_sale,"quote_id":trade.quote_id},true))
+	button(buttons,"刷新报价",func(): world.api.call_api("shop","/v1/worlds/{world}/shops/"+str(trade.merchant_id)))
+	button(buttons,"返回交谈",back_from_shop)
+	button(buttons,"收起",close)
+	status_label=label("装备中的物品与受托货物不参与普通交易。" )
+
+func back_from_shop() -> void:
+	var npc_id:String=str(trade.get("merchant_id",""))
+	close()
+	var npc=world.actors.get(npc_id)
+	if is_instance_valid(npc) and npc.alive and npc.global_position.distance_to(world.player.global_position)<155.0:
+		world.hud.show_npc(npc)
 
 func buy_selected() -> void:
 	if selected_item.is_empty() or not world.api.idle(): return
@@ -273,8 +316,9 @@ func show_container(data: Dictionary) -> void:
 	label("\u7bb1\u4e2d\u91d1\u5e01\uff1a%d\u3002\u5df2\u53d6\u8d70\u7684\u4e1c\u897f\u4e0d\u4f1a\u56e0\u91cd\u65b0\u6253\u5f00\u800c\u51fa\u73b0\u3002" % int(data.container.get("gold", 0)))
 	var list = ItemList.new()
 	list.custom_minimum_size = Vector2(668, 244)
+	list.fixed_icon_size = Vector2i(28, 28)
 	column.add_child(list)
-	for item in data.get("items", []): list.add_item(str(item.name) + "  |  " + rarity(str(item.quality)))
+	for item in data.get("items", []): list.add_item(str(item.name) + "  |  " + rarity(str(item.quality)), item_icon(item))
 	list.item_selected.connect(func(index: int): selected_item = str(chest.items[index].id))
 	var buttons = row()
 	button(buttons, "\u53d6\u51fa\u7269\u54c1", func(): take_selected(false))
@@ -293,43 +337,34 @@ func request_journal(reset: bool = true) -> void:
 	world.api.call_api("journal", "/v1/worlds/{world}/journal?after_seq=" + str(page_after) + "&limit=30")
 
 func show_journal(data: Dictionary) -> void:
-	rebuild("journal", "\u65c5\u4eba\u624b\u672d")
-	var tabs = TabContainer.new()
-	tabs.custom_minimum_size = Vector2(668, 284)
-	column.add_child(tabs)
-	var log = RichTextLabel.new()
-	log.name = "\u4eb2\u5386\u4e0e\u89c1\u95fb"
-	log.bbcode_enabled = false
-	tabs.add_child(log)
-	for entry in data.get("entries", []):
-		log.add_text("[" + str(entry.tick) + "] " + str(entry.title) + "\n" + str(entry.text) + "\n")
-		log.add_text("\u4e8b\u4ef6 " + str(entry.event_id) + "\n")
-		if not entry.caused_by.is_empty(): log.add_text("\u6765\u6e90 " + ", ".join(PackedStringArray(entry.caused_by)) + "\n")
-		log.add_text("\n")
-	if data.get("entries", []).is_empty(): log.text = "\u8fd9\u4e00\u9875\u8fd8\u6ca1\u6709\u8bb0\u5f55\u3002\u624b\u672d\u53ea\u6536\u5f55\u4f60\u5df2\u83b7\u77e5\u7684\u4e8b\u4ef6\uff0c\u4e0d\u5c55\u793a NPC \u79c1\u4eba\u8bb0\u5fc6\u3002"
-	var jobs = RichTextLabel.new()
-	jobs.name = "\u5df2\u77e5\u6258\u4ed8"
-	tabs.add_child(jobs)
-	for quest in data.get("quests", []):
-		jobs.add_text(str(quest.title) + "  [" + str(quest.status) + "]\n")
-		jobs.add_text(str(quest.get("description", quest.get("item_name", ""))) + "\n")
-		jobs.add_text("\u916c\u91d1 " + str(quest.reward) + " | \u76ee\u7684\u5730\uff08\u683c\u5750\u6807\uff09 " + str(quest.get("destination", {})) + "\n")
-		jobs.add_text("\u901a\u8fc7\u4ea4\u8c08\u63a5\u4e0b\u6258\u4ed8\uff1b\u9001\u8d27\u9700\u5728\u6536\u4ef6\u4eba\u8eab\u8fb9\u4ece\u884c\u56ca\u8d60\u9001\u6307\u5b9a\u7269\u54c1\u3002\n\n")
-	if data.get("quests", []).is_empty(): jobs.text = "\u8fd8\u6ca1\u6709\u5f97\u77e5\u59d4\u6258\u3002\u8bd5\u7740\u95ee\u95ee\u8def\u4eba\u6709\u4ec0\u4e48\u9700\u8981\u5e2e\u5fd9\u7684\u4e8b\u3002"
-	var history = RichTextLabel.new()
-	history.name = "\u7f16\u5e74\u7ae0\u8282"
-	history.bbcode_enabled = false
-	tabs.add_child(history)
-	for chapter in data.get("chapters", []):
-		history.add_text(str(chapter.title) + "\n" + str(chapter.narrative) + "\n")
-		history.add_text("\u6765\u6e90 " + ", ".join(PackedStringArray(chapter.source_event_ids)) + "\n")
-		history.add_text("\u8bb0\u5f55\u65b9\u5f0f " + str(chapter.get("mode", "rules")) + "\n\n")
-	if data.get("chapters", []).is_empty(): history.text = "\u5b8c\u6210\u4ea4\u6613\u3001\u6218\u6597\u6216\u59d4\u6258\u540e\uff0c\u4e0b\u6b21\u4e16\u754c\u63a8\u8fdb\u4f1a\u628a\u771f\u5b9e\u4e8b\u4ef6\u6574\u7406\u6210\u7ae0\u8282\u3002"
-	next_after = int(data.get("next_after_seq", page_after))
-	var buttons = row()
-	button(buttons, "\u4e0a\u4e00\u9875", previous_journal, page_history.is_empty())
-	button(buttons, "\u4e0b\u4e00\u9875", next_journal, not data.get("has_more", false))
-	button(buttons, "\u6536\u8d77", close)
+	rebuild("journal", "旅行手记")
+	var log := RichTextLabel.new()
+	log.custom_minimum_size=Vector2(660,180)
+	log.bbcode_enabled=false
+	column.add_child(log)
+	for entry in data.get("entries",[]):
+		log.add_text(str(entry.title)+"\n"+str(entry.text)+"\n\n")
+	if data.get("entries",[]).is_empty(): log.text="旅程刚刚开始，重要经历会记录在这里。"
+	for quest in data.get("quests",[]):
+		label(str(quest.title)+" · "+str({"open":"尚未接取","active":"进行中","completed":"已完成","failed":"已结束"}.get(quest.status,quest.status)))
+		label(str(quest.get("description",""))+"\n"+str(quest.get("clue",""))+"\n酬金："+str(quest.reward)+" 金币")
+		if quest.status=="active" and quest.get("kind") in ["gather","hunt"]:
+			var quest_id: String = str(quest.id)
+			button(row(),"在委托人身边提交",func(): world.api.call_api("interact","/v1/worlds/{world}/interact",{"action":"SUBMIT","target_id":quest_id},true))
+	for contract in data.get("contracts",[]):
+		if contract.status not in ["active","pending_payment"]: continue
+		var npc_id: String = str(contract.npc_id)
+		label("同行约定："+("等待支付 "+str(contract.fee)+" 金币" if contract.status=="pending_payment" else "正在同行"))
+		var buttons := row()
+		if contract.status=="pending_payment":
+			button(buttons,"支付酬金",func(): world.api.call_api("interact","/v1/worlds/{world}/interact",{"action":"PAY_HIRE","target_id":npc_id},true))
+		button(buttons,"结束约定",func(): world.api.call_api("interact","/v1/worlds/{world}/interact",{"action":"DISMISS","target_id":npc_id},true))
+	for news in data.get("notices",[]): label(str(news.description))
+	next_after=int(data.get("next_after_seq",page_after))
+	var buttons := row()
+	button(buttons,"上一页",previous_journal,page_history.is_empty())
+	button(buttons,"下一页",next_journal,not data.get("has_more",false))
+	button(buttons,"收起",close)
 
 func next_journal() -> void:
 	page_history.append(page_after)
@@ -359,9 +394,18 @@ func complete(operation: String, data: Dictionary) -> void:
 		"model_status":
 			known_config = data
 			if screen == "title" and modal_open:
-				open_title()
-				notice("\u4e16\u754c\u670d\u52a1\u5df2\u8fde\u63a5\u3002\u53ef\u4ee5\u521b\u5efa\u65b0\u65c5\u9014\u6216\u8bfb\u53d6\u5b58\u6863\u3002")
+				# Do not rebuild the title screen here: it destroys a player-entered
+				# API key and character name if the backend finishes starting later.
+				notice("世界服务已连接，可以开始新旅途。")
+				if start_when_connected:
+					start_when_connected = false
+					start_new()
 		"configure_model":
+			if is_instance_valid(use_model) and use_model.button_pressed and not bool(data.get("configured",false)):
+				notice("Model connection was not activated; check the provider settings.")
+				pending_start = {}
+				pending_save = ""
+				return
 			known_config.configured = data.get("configured", false)
 			if is_instance_valid(base_input): known_config.base_url = base_input.text.strip_edges()
 			if is_instance_valid(model_input): known_config.model = model_input.text.strip_edges()
@@ -371,7 +415,7 @@ func complete(operation: String, data: Dictionary) -> void:
 				close()
 		"list_saves": show_saves(data)
 		"shop": show_shop(data)
-		"shop_buy":
+		"shop_buy", "shop_sell":
 			show_shop(data.shop)
 			world.api.call_api("economy", "/v1/worlds/{world}/economy")
 		"container": show_container(data)
@@ -379,6 +423,10 @@ func complete(operation: String, data: Dictionary) -> void:
 			show_container(data)
 			world.api.call_api("economy", "/v1/worlds/{world}/economy")
 		"journal": show_journal(data)
+		"interact":
+			world.api.call_api("economy","/v1/worlds/{world}/economy")
+			world.hud.notice("操作已完成。")
+			if screen=="journal" or data.get("events",[]).any(func(e): return e.type=="board_read"): request_journal()
 		"consume":
 			if world.hud.panel_open: world.hud.render_inventory()
 		"save":
@@ -390,5 +438,9 @@ func complete(operation: String, data: Dictionary) -> void:
 
 func _input(event: InputEvent) -> void:
 	if modal_open and event is InputEventKey and event.pressed and event.physical_keycode == KEY_ESCAPE:
-		if screen not in ["title", "saves"] or not world.state.is_empty(): close()
+		if screen in ["settings","saves"]:
+			if world.state.is_empty(): open_title()
+			else: open_pause()
+		elif screen == "shop": back_from_shop()
+		elif screen != "title" or not world.state.is_empty(): close()
 		get_viewport().set_input_as_handled()

@@ -63,6 +63,20 @@ class PlayService:
                 meta=life.read(c,world_id)
                 life._change_relation(meta,target,player.id,2,-1,events[0].id);life.write(c,world_id,meta)
                 extra['shop']=life.shop_view(c,state,target)
+            elif operation=='sell':
+                from server.world.continuity import wallet,transfer_gold
+                shop=life.shop_view(c,state,target)
+                if shop['quote_id']!=body.quote_id:raise WorldError('QUOTE_EXPIRED','报价已变化。',409)
+                listing=next((v for v in shop['sellable'] if v['item']['id']==body.item_id),None)
+                if not listing:raise WorldError('ITEM_NOT_TRADABLE','这件物品不可出售。')
+                transfer_gold(c,state,target,player.id,listing['price'])
+                item=next(i for i in state.items if i.id==body.item_id)
+                item.owner_id=shop['container_id']
+                events=[event(state,'shop_sale',seq,player.id,target,{'item_id':item.id,'item_name':item.name,'price':listing['price']},item.origin_event_ids,[player.id,target])]
+                extra['shop']=life.shop_view(c,state,target)
+            elif operation=='interact':
+                from server.world.continuity import action
+                events=action(c,state,body,json.loads(row['region']),seq)
             elif operation=='take':
                 box=self._box(state,target)
                 if body.item_id is None and not body.take_gold:

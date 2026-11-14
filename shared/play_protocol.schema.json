@@ -192,5 +192,59 @@
     ],
     "title": "QuestAccept",
     "type": "object"
+  },
+  "WorldInteraction": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "action": {
+        "enum": [
+          "GATHER",
+          "BOARD",
+          "PAY_HIRE",
+          "DISMISS",
+          "SUBMIT",
+          "GIVE_GOLD",
+          "REPAIR"
+        ],
+        "title": "Action",
+        "type": "string"
+      },
+      "target_id": {
+        "title": "Target Id",
+        "type": "string"
+      },
+      "amount": {
+        "default": 1,
+        "maximum": 9999,
+        "minimum": 1,
+        "title": "Amount",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "action",
+      "target_id"
+    ],
+    "title": "WorldInteraction",
+    "type": "object"
   }
 }

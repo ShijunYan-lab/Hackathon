@@ -70,6 +70,6 @@ def build(connection, state, config, triggers):
             'npc_alive_limit': config.npc_alive_limit,
             'FOLLOW_UP': 'Only a living NPC target can be queued for planning; this does not execute its actions.',
             'RESOURCE_NEED': 'One open need per active organization. quantity means desired stock, not free resources.',
-            'ERRAND': 'Only living merchant target_id with stock and a 5-gold wage; quest_kind delivery or rescue. Real actors execute validated tasks. Maximum 5 active errands.',
+            'ERRAND': 'quest_kind delivery/rescue needs a living merchant with stock and 5 gold. gather uses a living NPC issuer target_id, resource herb/wood/stone/iron and quantity 1..20 with available real resource sites; reward is reserved at 3 gold per material. hunt requires a living NPC issuer target_id, a real living monster appearing in source_event_ids and 10 gold. Maximum 5 active errands. All results require physical completion.',
             'MIGRATION': 'Requires an unused NPC death or unresolved resource_need_created event and a configured migration_entry. Never revive old identities.'},
         allowed_proposals=['FOLLOW_UP', 'RESOURCE_NEED', 'MIGRATION'] + (['ERRAND'] if state.containers else []))
