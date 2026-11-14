@@ -61,3 +61,11 @@ NPC 模型和导演共用最多 2 个并发调用槽；单次模型至多 8 秒�
 /health 的 component_modes 显示 NPC 和导演最近一次实际调用模式，未调用时为 fallback；整体 mode/model_connected 表示是否有组件最近成功调用适配器，各次响应仍以自己的 mode 为准。测试注入的 provider 仅为合成测试替身；真实模型质量尚未验收。
 
 最小 HTTP 演示：python -m server.api.world_smoke。自动验证：python -m pytest tests/test_advance.py -q，包含降级/超时、非法来源、去重与重启、导演排队和私有上下文、评审冻结、并发过期结果、真实任务结算规则。脚本中的位置/报告为合成客户端输入，不代表已完成 Godot 联测。
+
+### 导演跟进与本机 DeepSeek 联调
+
+导演 FOLLOW_UP 入队后，下一个可规划回合优先考虑目标 NPC。规划器收到的触发 ID 仅含该 NPC 已目击或获知的来源。导演私有摘要不进入 NPC 上下文。模型不可用时保留队列；目标死亡时取消。返回合法 WAIT 也算完成本次规划，实际任务结果仍由 TASK_REPORT 结算。
+
+Windows 本机运行 `pwsh -NoProfile -File server/start_world_model.ps1 -Port 8774 -DebugViews -NpcDemo` 可显式启用 NPC 联调适配器。若 B 提供 server.agents.service.dialogue/plan，优先使用 B。NPC 联调适配器使用同一 DeepSeek 凭据和独立的角色知情上下文，不承担比赛学习。开启调试后可用 `python -m server.api.director_smoke --npc-follow-up` 检查队列；WORLD_API_URL 指向所用端口。模型可以自主不安排跟进，此时脚本会标出该次未观察到入队。
+
+导演调试接口默认返回最近 20 条评估和至多 20 条跟进，limit 范围 1–100。剧情接口返回最近 50 条可见记忆及 50 条可见线索。历史事件用 /events 分页查询。

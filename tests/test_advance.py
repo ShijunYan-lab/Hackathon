@@ -43,7 +43,7 @@ def test_fallback_ticks_dedup_invalid_trigger_and_restart(tmp_path):
         assert client.post(path + '/advance', json=body).json() == response.json()
         data = client.post(path + '/advance', json=request(state)).json()['data']
         assert data['director']['reason_code'] == 'NOT_DUE'
-        assert len(client.get(path + '/director/debug').json()['data']['runs']) == 4
+        assert [run['tick'] for run in client.get(path + '/director/debug').json()['data']['runs']] == [3]
 
 
 def test_director_follow_up_private_context_and_persistence(tmp_path):
@@ -74,7 +74,7 @@ def test_director_follow_up_private_context_and_persistence(tmp_path):
         assert contexts[-1].npc_id == target_ids[0]
         audit = client.get(path + '/director/debug').json()['data']
         assert audit['focus'][0]['status'] == 'consumed'
-        assert audit['runs'][2]['result']['decision']['summary'] == '安排一次评估'
+        assert audit['runs'][0]['result']['decision']['summary'] == '安排一次评估'
         assert len(target_ids) == 1
 
 
@@ -96,6 +96,50 @@ def test_invalid_and_timeout_director_and_evaluation_freeze(tmp_path):
             data = client.post(path + '/advance', json=body).json()['data']
             assert data['director']['status'] == status
             assert data['director']['accepted_proposals'] == 0
+
+
+def test_follow_up_retries_and_passes_only_npc_known_sources(tmp_path):
+    seen = []
+    follow_up = False
+    async def plan(context, triggers):
+        if follow_up:
+            seen.append(triggers)
+            if len(seen) == 1:
+                raise TimeoutError()
+        return AgentDecision(intent={'action': 'WAIT'})
+
+    async def direct(context):
+        hit = next(e for e in context.events if e.type == 'hit_applied')
+        return DirectorDecision(proposals=[{'kind': 'FOLLOW_UP', 'target_id': hit.target_id,
+            'source_event_ids': [hit.id, context.events[0].id], 'reason_summary': '处理受击后的影响'}])
+
+    app = create_app(tmp_path / 'focus.sqlite3', plan_provider=plan, director_provider=direct, allow_debug=True)
+    with TestClient(app) as client:
+        path, state = new(client)
+        player, target = state['actors'][:2]
+        moved = client.post(path + '/commands', json={'request_id': uuid4().hex,
+            'expected_world_version': state['world_version'], 'kind': 'CHECKPOINT', 'payload': {
+            'region_id': player['region_id'], 'positions': [{'actor_id': player['id'], 'tile': target['tile']}]}})
+        assert moved.status_code == 200
+        state = moved.json()['data']['state']
+        player = state['actors'][0]
+        hit = client.post(path + '/commands', json={'request_id': uuid4().hex,
+            'expected_world_version': state['world_version'], 'kind': 'HIT', 'payload': {
+            'attack_id': uuid4().hex, 'attacker_id': player['id'], 'target_id': target['id'],
+            'weapon_id': player['equipped_item_id'], 'region_id': player['region_id'],
+            'attacker_tile': player['tile'], 'target_tile': target['tile']}})
+        assert hit.status_code == 200, hit.text
+        data = hit.json()['data']
+        event_id = next(e['id'] for e in data['events'] if e['type'] == 'hit_applied')
+        data = client.post(path + '/advance', json=request(data['state'], reason='major_event',
+                           trigger_event_ids=[event_id])).json()['data']
+        assert data['director']['accepted_proposals'] == 1
+        follow_up = True
+        data = client.post(path + '/advance', json=request(data['state'])).json()['data']
+        assert client.get(path + '/director/debug').json()['data']['focus'][0]['status'] == 'queued'
+        data = client.post(path + '/advance', json=request(data['state'])).json()['data']
+        assert client.get(path + '/director/debug').json()['data']['focus'][0]['status'] == 'consumed'
+        assert seen == [[event_id]] * 2
 
 
 def test_advance_concurrent_update_does_not_commit_stale_model(tmp_path):

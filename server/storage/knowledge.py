@@ -55,7 +55,7 @@ def record_event(connection, world_id, event: Event):
     for npc_id in set(event.witness_ids) & npc_ids:
         connection.execute("INSERT OR IGNORE INTO event_knowledge VALUES (?, ?, ?, 'observation')",
                            (world_id, npc_id, event.id))
-        if event.type != "positions_checkpointed":
+        if event.type not in {"positions_checkpointed", "decision_accepted"}:
             memory_id = stable_id("mem", npc_id, event.id)
             memory = {"id": memory_id, "npc_id": npc_id, "statement": event_summary(event)[:300],
                       "source_type": "observation", "source_event_ids": [event.id],
@@ -64,7 +64,7 @@ def record_event(connection, world_id, event: Event):
                 memory.update(source_type="report", confidence=.4, status="unverified")
             connection.execute("INSERT OR IGNORE INTO npc_memories VALUES (?, ?, ?, ?)",
                                (world_id, npc_id, memory_id, json.dumps(memory, ensure_ascii=False)))
-    if event.type == "positions_checkpointed":
+    if event.type in {"positions_checkpointed", "decision_accepted", "world_advanced", "director_assessed"}:
         return
     memory = WorldMemory(id=stable_id("world_mem", event.id), summary=event_summary(event),
                          source_event_ids=[event.id], through_event_seq=event.event_seq)
@@ -117,7 +117,7 @@ def knows_event(connection, world_id, npc_id, event_id):
 def planning_events(connection, world_id, npc_id, sources):
     recent = connection.execute("""SELECT e.body FROM events e JOIN event_knowledge k
         ON e.world_id=k.world_id AND e.id=k.event_id
-        WHERE k.world_id=? AND k.npc_id=? AND json_extract(e.body, '$.type') != 'positions_checkpointed'
+        WHERE k.world_id=? AND k.npc_id=? AND json_extract(e.body, '$.type') NOT IN ('positions_checkpointed', 'decision_accepted')
         ORDER BY e.seq DESC LIMIT 8""", (world_id, npc_id))
     selected = {entry.id: entry for entry in (Event.model_validate_json(row[0]) for row in recent)}
     for source in sources - selected.keys():
@@ -140,20 +140,19 @@ def save_memory_proposals(connection, world_id, npc_id, proposals: list[MemoryPr
                            (world_id, npc_id, memory_id, json.dumps(body, ensure_ascii=False)))
 
 
-def story_view(connection, world_id, player_id=None):
-    visible = None
-    if player_id is not None:
-        visible = set()
-        for row in connection.execute("SELECT body FROM events WHERE world_id=?", (world_id,)):
-            event = Event.model_validate_json(row[0])
-            if player_id in event.witness_ids:
-                visible.add(event.id)
-    world_memories = [WorldMemory.model_validate_json(row[0]) for row in connection.execute(
-        "SELECT body FROM world_memories WHERE world_id=? ORDER BY seq", (world_id,))]
-    threads = [StoryThread.model_validate_json(row[0]) for row in connection.execute(
-        "SELECT body FROM story_threads WHERE world_id=? ORDER BY rowid", (world_id,))]
-    if visible is not None:
-        world_memories = [memory for memory in world_memories if set(memory.source_event_ids) <= visible]
-        threads = [thread for thread in threads if set(thread.source_event_ids) <= visible]
-    return {"memories": [memory.model_dump(mode="json") for memory in world_memories],
-            "story_threads": [thread.model_dump(mode="json") for thread in threads]}
+def story_view(connection, world_id, player_id=None, limit=50):
+    def recent(table, order):
+        where = ""
+        params = [world_id]
+        if player_id is not None:
+            where = """ AND NOT EXISTS (
+                SELECT 1 FROM json_each(record.body, '$.source_event_ids') AS source
+                WHERE NOT EXISTS (SELECT 1 FROM events e, json_each(e.body, '$.witness_ids') AS witness
+                    WHERE e.world_id=record.world_id AND e.id=source.value AND witness.value=?))"""
+            params.append(player_id)
+        rows = connection.execute(
+            f"SELECT record.body FROM {table} record WHERE record.world_id=?{where} ORDER BY {order} DESC LIMIT ?",
+            (*params, limit)).fetchall()
+        return [json.loads(row[0]) for row in reversed(rows)]
+
+    return {"memories": recent("world_memories", "seq"), "story_threads": recent("story_threads", "rowid")}

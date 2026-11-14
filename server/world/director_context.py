@@ -18,6 +18,8 @@ def build(connection, state, config, triggers):
     ceiling = config.event_budget * 2
     for row in threads:
         record = json.loads(row[0])
+        history = record['source_event_ids']
+        record['source_event_ids'] = list(dict.fromkeys(history[:1] + history[-7:]))
         sources = set(record['source_event_ids'])
         if len(selected | sources) <= ceiling:
             selected.update(sources)

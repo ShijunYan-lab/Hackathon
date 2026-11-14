@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS agent_requests (
 
 
 class AgentGateway:
-    def __init__(self, dialogue=None, plan=None, timeout_s=8):
+    def __init__(self, dialogue=None, plan=None, timeout_s=8, integration_model=None):
+        self.integration_model = integration_model
         self.dialogue_provider = dialogue
         self.plan_provider = plan
         self.timeout_s = timeout_s
@@ -48,8 +49,10 @@ class AgentGateway:
             try:
                 provider = getattr(importlib.import_module("server.agents.service"), kind)
             except (ImportError, AttributeError):
-                self.last_mode = "fallback"
-                return AgentDecision(reply="当前模型未接入，我会暂时等待。", intent={"action": "WAIT"}), "fallback"
+                if self.integration_model is None:
+                    self.last_mode = "fallback"
+                    return AgentDecision(reply="当前模型未接入，我会暂时等待。", intent={"action": "WAIT"}), "fallback"
+                provider = getattr(self.integration_model, 'npc_' + kind)
         if len(context.model_dump_json().encode('utf-8')) > 96 * 1024:
             self.last_mode = "fallback"
             return AgentDecision(reply="当前信息超过处理预算，我会暂时等待。", intent={"action": "WAIT"}), "fallback"
@@ -72,7 +75,7 @@ def profile(connection, world_id, npc_id):
     return json.loads(row[0]) if row else {"policy": {"caution": .5}, "version": 0, "history": [], "goals": []}
 
 
-def build_context(connection, state, npc_id, extra_events=()):
+def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
     npc = living_actor(state, npc_id)
     if npc.kind != "npc":
         raise WorldError("NPC_NOT_FOUND", "该角色不是 NPC。", 404)
@@ -84,7 +87,7 @@ def build_context(connection, state, npc_id, extra_events=()):
             sources = candidate
             selected_memories.append(memory)
     selected_memories.reverse()
-    known = knowledge.planning_events(connection, state.world_id, npc_id, sources)
+    known = knowledge.planning_events(connection, state.world_id, npc_id, sources | set(trigger_ids))
     entities = [value.model_dump(mode="json") for value in [*state.actors, *state.sites]
                 if value.region_id == npc.region_id and math.hypot(
                     value.tile.x - npc.tile.x, value.tile.y - npc.tile.y) <= 6]
@@ -161,12 +164,13 @@ class AgentRuntime:
         if player.behavior == "attacking" or npc.behavior == "attacking":
             raise WorldError("PRECONDITION_FAILED", "战斗中无法对话。")
 
-    def apply_decision(self, connection, state, context, decision, mode, region, seq):
+    def apply_decision(self, connection, state, context, decision, mode, region, seq, trigger_ids=()):
         decision_id = "decision_" + uuid4().hex
         accepted = event(state, "decision_accepted", seq, context.npc_id, None,
                          {"decision_id": decision_id, "mode": mode}, [], [context.npc_id])
         accepted.caused_by = list(dict.fromkeys(source for memory in context.memories
             if memory["id"] in decision.evidence_memory_ids for source in memory["source_event_ids"]))
+        accepted.caused_by = list(dict.fromkeys([*accepted.caused_by, *trigger_ids]))
         candidate = state.model_copy(deep=True)
         connection.execute("SAVEPOINT agent_decision")
         try:

@@ -3,7 +3,7 @@ import asyncio
 import json
 from uuid import uuid4
 
-from shared.protocol import StateView
+from shared.protocol import Event, StateView
 from server.storage.sqlite import response
 from server.world.agent_runtime import build_context
 from server.world.commands import WorldError
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS director_focus (
     source_event_id TEXT NOT NULL, status TEXT NOT NULL,
     PRIMARY KEY(world_id, id)
 );
+CREATE INDEX IF NOT EXISTS director_focus_by_status ON director_focus(world_id, status);
 """
 
 
@@ -52,13 +53,15 @@ class WorldTurns:
             connection.execute("UPDATE world_runtime SET evaluation_active=? WHERE world_id=?",
                                (int(active), world_id))
 
-    def debug(self, world_id):
+    def debug(self, world_id, limit=20):
         with self.store.connection() as connection:
             state = StateView.model_validate_json(self.store.world_row(connection, world_id)["state"])
             runs = [json.loads(row[0]) for row in connection.execute(
-                "SELECT body FROM director_runs WHERE world_id=? ORDER BY rowid", (world_id,))]
+                "SELECT body FROM director_runs WHERE world_id=? ORDER BY rowid DESC LIMIT ?", (world_id, limit))]
+            runs.reverse()
             focus = [dict(row) for row in connection.execute(
-                "SELECT * FROM director_focus WHERE world_id=? ORDER BY rowid", (world_id,))]
+                """SELECT * FROM director_focus WHERE world_id=?
+                    ORDER BY (status='queued') DESC, rowid DESC LIMIT ?""", (world_id, limit))]
             return response("director_debug", state, {"runs": runs, "focus": focus})
 
     async def advance(self, world_id, body):
@@ -89,12 +92,20 @@ class WorldTurns:
             chosen_focus = next((row for row in focus if row["npc_id"] in {actor.id for actor in eligible}), None)
             npc_id = chosen_focus["npc_id"] if chosen_focus else (
                 eligible[(state.tick - 1) % len(eligible)].id if eligible else None)
-            context = build_context(connection, state, npc_id) if npc_id else None
-            triggers = [value for value in body.trigger_event_ids
+            trigger_ids = list(body.trigger_event_ids)
+            if chosen_focus:
+                row = connection.execute('SELECT body FROM events WHERE world_id=? AND id=?',
+                                         (world_id, chosen_focus['source_event_id'])).fetchone()
+                trigger_ids.extend(Event.model_validate_json(row[0]).caused_by)
+            trigger_ids = list(dict.fromkeys(trigger_ids))
+            context = build_context(connection, state, npc_id, trigger_ids=trigger_ids) if npc_id else None
+            triggers = [value for value in trigger_ids
                         if context and value in {entry.id for entry in context.known_events}]
         try:
-            deadline = asyncio.get_running_loop().time() + 12
-            decision, mode = await self.agents.gateway.call("plan", context, triggers) if context else (None, "fallback")
+            async def plan():
+                if context is None:
+                    return None, "fallback"
+                return await self.agents.gateway.call("plan", context, triggers)
             director = WorldDirector(config, self.provider)
             async def assess():
                 if director_context is None:
@@ -105,11 +116,14 @@ class WorldTurns:
                     return await director.assess(director_context,
                         last_assessed_tick=runtime["last_director_tick"],
                         major_event=major_event)
-            try:
-                result = await asyncio.wait_for(assess(), max(.001, deadline - asyncio.get_running_loop().time()))
-            except asyncio.TimeoutError:
-                result = DirectorResult(world_id=world_id, expected_world_version=body.expected_world_version,
-                    mode="fallback", status="unavailable", reason_code="REQUEST_BUDGET_EXHAUSTED")
+            async def assess_with_budget():
+                try:
+                    return await asyncio.wait_for(assess(), timeout=10)
+                except asyncio.TimeoutError:
+                    return DirectorResult(world_id=world_id, expected_world_version=body.expected_world_version,
+                        mode="fallback", status="unavailable", reason_code="REQUEST_BUDGET_EXHAUSTED")
+
+            (decision, mode), result = await asyncio.gather(plan(), assess_with_budget())
             if result.status != "skipped":
                 self.last_mode = result.mode
             with self.store.connection(write=True) as connection:
@@ -118,13 +132,15 @@ class WorldTurns:
                     raise WorldError("EVALUATION_FROZEN", "评审已开始，普通推进已取消。", 409)
                 state.tick += 1
                 emitted, task_ids, summaries = [], [], []
-                if decision is not None:
+                if decision is not None and mode == "live":
                     state, planned, task_ids, intent_status = self.agents.apply_decision(
-                        connection, state, context, decision, mode, region, seq)
+                        connection, state, context, decision, mode, region, seq, triggers)
                     emitted.extend(planned)
                     summaries.append({"npc_id": npc_id, "mode": mode, "intent_status": intent_status,
                                       "task_ids": task_ids})
-                if chosen_focus:
+                elif decision is not None:
+                    summaries.append({"npc_id": npc_id, "mode": mode, "intent_status": "none", "task_ids": []})
+                if chosen_focus and mode == "live":
                     connection.execute("UPDATE director_focus SET status='consumed' WHERE world_id=? AND id=?",
                                        (world_id, chosen_focus["id"]))
                     emitted.append(event(state, "director_follow_up_processed", seq + len(emitted),
@@ -175,9 +191,9 @@ class WorldTurns:
                 if result.status != "skipped":
                     connection.execute("UPDATE world_runtime SET last_director_tick=? WHERE world_id=?",
                                        (state.tick, world_id))
-                record = {"tick": state.tick, "result": result.model_dump(mode="json"), "executions": applied}
-                connection.execute("INSERT INTO director_runs VALUES (?, ?, ?)",
-                                   (world_id, "director_" + uuid4().hex, json.dumps(record, ensure_ascii=False)))
+                    record = {"tick": state.tick, "result": result.model_dump(mode="json"), "executions": applied}
+                    connection.execute("INSERT INTO director_runs VALUES (?, ?, ?)",
+                                       (world_id, "director_" + uuid4().hex, json.dumps(record, ensure_ascii=False)))
                 emitted.append(event(state, "world_advanced", seq + len(emitted), None, None,
                     {"reason": body.reason, "director_status": result.status}, body.trigger_event_ids, []))
                 economy.reconcile(connection, state, emitted)

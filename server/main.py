@@ -56,11 +56,13 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         rules = combat_rules or CombatRules.from_file(rules_path)
         app.state.store = WorldStore(db_path or os.environ.get("WORLD_DB_PATH", str(ROOT / "runtime/worlds.sqlite3")),
                                      combat_rules=rules, clock=clock)
+        model = DirectorModel.from_environment()
+        npc_integration = model if os.environ.get('WORLD_NPC_MODEL_DEMO', '').lower() == 'true' else None
         app.state.agents = AgentRuntime(app.state.store, AgentGateway(dialogue_provider, plan_provider,
-                                                                    timeout_s=agent_timeout_s))
+                                                                    timeout_s=agent_timeout_s, integration_model=npc_integration))
         config = director_config or DirectorConfig.from_file(os.environ.get(
             "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
-        app.state.turns = WorldTurns(app.state.agents, config, director_provider or DirectorModel.from_environment())
+        app.state.turns = WorldTurns(app.state.agents, config, director_provider or model)
         app.state.snapshots = Snapshots(app.state.store)
         app.state.economy = EconomyAPI(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
@@ -214,10 +216,10 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         return await app.state.turns.advance(world_id, body)
 
     @app.get("/v1/worlds/{world_id}/director/debug")
-    def director_debug(world_id: str):
+    def director_debug(world_id: str, limit: int = Query(default=20, ge=1, le=100)):
         if not allow_debug:
             raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
-        return app.state.turns.debug(world_id)
+        return app.state.turns.debug(world_id, limit)
 
     @app.get("/v1/worlds/{world_id}/events")
     def events(world_id: str, after_seq: int = Query(default=0, ge=0),
