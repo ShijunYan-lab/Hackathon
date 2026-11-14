@@ -104,6 +104,7 @@ class Snapshots:
             if cached is not None:
                 return cached
             state = StateView.model_validate_json(self.store.world_row(connection, world_id)['state'])
+            self.store.require_ordinary(connection, world_id)
             if state.world_version != body.expected_world_version:
                 raise WorldError('VERSION_CONFLICT', '世界版本已变化，请刷新。', 409)
             if any(actor.behavior == 'attacking' for actor in state.actors):

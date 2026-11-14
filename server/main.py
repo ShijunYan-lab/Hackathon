@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import asyncio
+from contextlib import suppress
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -15,6 +17,9 @@ from starlette.exceptions import HTTPException
 
 from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest, SaveRequest, LoadRequest
 from server.storage.snapshots import Snapshots
+from server.evaluation.scenario import TransportScenario
+from server.evaluation.service import Evaluations
+from shared.evaluation_protocol import EvaluationCreateRequest, EvaluationRunRequest
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
 from server.world.combat import CombatRules
@@ -29,7 +34,8 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                region_id: str | None = None, allow_debug: bool | None = None,
                combat_rules: CombatRules | None = None, clock=None,
                dialogue_provider=None, plan_provider=None, agent_timeout_s=8,
-               director_provider=None, director_config=None) -> FastAPI:
+               director_provider=None, director_config=None, transport_scenario=None,
+               choose_provider=None) -> FastAPI:
     if allow_debug is None:
         allow_debug = os.environ.get("ALLOW_DEBUG", "false").lower() == "true"
     @asynccontextmanager
@@ -51,7 +57,19 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
         app.state.turns = WorldTurns(app.state.agents, config, director_provider)
         app.state.snapshots = Snapshots(app.state.store)
-        yield
+        app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
+            transport_scenario or TransportScenario(), region, choose_provider)
+        async def maintenance():
+            while True:
+                app.state.evaluations.expire()
+                await asyncio.sleep(.25)
+        worker = asyncio.create_task(maintenance())
+        try:
+            yield
+        finally:
+            worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await worker
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
                   description="步骤 01—08：世界、战斗、物品、记忆、NPC 任务与世界导演。未接模型时使用 fallback。")
@@ -117,6 +135,22 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post('/v1/saves/{save_id}/load')
     def load(save_id: str, body: LoadRequest):
         return app.state.snapshots.load(save_id, body)
+
+    @app.post('/v1/evaluations')
+    def evaluation_create(body: EvaluationCreateRequest):
+        return app.state.evaluations.create(body)
+
+    @app.post('/v1/evaluations/{evaluation_id}/runs', status_code=202)
+    async def evaluation_run(evaluation_id: str, body: EvaluationRunRequest):
+        return await app.state.evaluations.start(evaluation_id, body)
+
+    @app.get('/v1/evaluations/{evaluation_id}')
+    def evaluation_get(evaluation_id: str):
+        return app.state.evaluations.get(evaluation_id)
+
+    @app.get('/v1/evaluations/{evaluation_id}/report')
+    def evaluation_report(evaluation_id: str):
+        return app.state.evaluations.report(evaluation_id)
 
     @app.post("/v1/worlds/{world_id}/dialogue")
     async def dialogue(world_id: str, body: DialogueRequest):

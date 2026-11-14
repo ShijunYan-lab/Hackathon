@@ -31,6 +31,8 @@ class WorldStore:
         self.path = Path(path)
         self.combat_rules = (combat_rules or CombatRules()).model_copy(deep=True)
         self.clock = clock or time.time
+        self.command_guard = None
+        self.command_observer = None
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as connection:
             connection.executescript("""
@@ -88,6 +90,13 @@ class WorldStore:
             raise
         finally:
             connection.close()
+
+    @staticmethod
+    def require_ordinary(connection, world_id):
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE name='world_runtime'").fetchone():
+            row = connection.execute('SELECT evaluation_active FROM world_runtime WHERE world_id=?', (world_id,)).fetchone()
+            if row and row[0]:
+                raise WorldError('EVALUATION_FROZEN', '评审世界暂停普通对话、存档和世界干预。', 409)
 
     @staticmethod
     def cached(connection, scope, body):
@@ -168,6 +177,8 @@ class WorldStore:
             if cached is not None:
                 return cached
             row = self.world_row(connection, world_id)
+            if self.command_guard is not None:
+                self.command_guard(connection, world_id, body)
             state = StateView.model_validate_json(row["state"])
             if body.kind == "HIT":
                 duplicate = self.duplicate_hit(connection, state, body)
@@ -200,6 +211,8 @@ class WorldStore:
                     "events": [], "state": state.model_dump(mode="json")})
                 self.remember(connection, scope, body, result)
                 return result
+            if self.command_observer is not None:
+                self.command_observer(connection, state, events)
             state.world_version += 1
             state = StateView.model_validate(state.model_dump())
             connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))

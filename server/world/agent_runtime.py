@@ -199,6 +199,7 @@ class AgentRuntime:
             if cached is not None:
                 return cached
             state, _ = self.ensure_current(connection, world_id, body, scope, token)
+            self.store.require_ordinary(connection, world_id)
             self.check_dialogue(state, body.npc_id)
             latest = connection.execute("SELECT MAX(started_at + cooldown_s) FROM attacks WHERE world_id=? AND attacker_id IN (?, ?)",
                 (world_id, body.npc_id, state.player_id)).fetchone()[0]
@@ -212,6 +213,7 @@ class AgentRuntime:
             decision, mode = await self.gateway.call("dialogue", context, body.text)
             with self.store.connection(write=True) as connection:
                 state, region = self.ensure_current(connection, world_id, body, scope, token)
+                self.store.require_ordinary(connection, world_id)
                 self.check_dialogue(state, body.npc_id)
                 self.store.append_event(connection, world_id, speech)
                 state, events, task_ids, intent_status = self.apply_decision(
