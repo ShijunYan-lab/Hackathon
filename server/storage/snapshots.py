@@ -42,10 +42,13 @@ class Snapshots:
                 tables[table] = [dict(row) for row in connection.execute(
                     f'SELECT * FROM {table} WHERE world_id=? ORDER BY rowid', (world_id,))]
         # Preserve settled request ids, but never copy in-flight model executions.
-        requests = [dict(row) for row in connection.execute('SELECT * FROM requests ORDER BY rowid')
-                    if row['scope'].startswith(world_id + '/') and not row['scope'].endswith('/saves')]
+        requests = [dict(row) for row in connection.execute(
+            'SELECT * FROM requests WHERE scope >= ? AND scope < ? AND scope != ? ORDER BY rowid',
+            (world_id + '/', world_id + '0', world_id + '/saves'))]
+        checkpoints = [dict(row) for row in connection.execute(
+            'SELECT * FROM checkpoint_requests WHERE scope=? ORDER BY rowid', (world_id + '/commands',))]
         return {'format': 1, 'world': world, 'tables': tables, 'requests': requests,
-                'saved_at': self.store.clock()}
+                'checkpoint_requests': checkpoints, 'saved_at': self.store.clock()}
 
     def write(self, connection, world_id, label):
         snapshot = self.capture(connection, world_id)
@@ -88,13 +91,14 @@ class Snapshots:
                 columns = ','.join(row)
                 connection.execute(f"INSERT INTO {table} ({columns}) VALUES ({','.join('?' for _ in row)})",
                                    tuple(row.values()))
-        for row in snapshot['requests']:
-            result = json.loads(row['response'])
-            result['world_id'] = world_id
-            if result.get('data', {}).get('state'):
-                result['data']['state']['world_id'] = world_id
-            connection.execute('INSERT INTO requests VALUES (?, ?, ?, ?)',
-                (world_id + row['scope'][len(previous_id):], row['id'], row['body'], encode(result)))
+        for table in ('requests', 'checkpoint_requests'):
+            for row in snapshot.get(table, []):
+                result = json.loads(row['response'])
+                result['world_id'] = world_id
+                if result.get('data', {}).get('state'):
+                    result['data']['state']['world_id'] = world_id
+                connection.execute(f'INSERT INTO {table} VALUES (?, ?, ?, ?)',
+                    (world_id + row['scope'][len(previous_id):], row['id'], row['body'], encode(result)))
         connection.execute('INSERT INTO world_branches VALUES (?, ?)', (world_id, save_id))
         from server.world.economy import initialize
         initialize(connection, state)

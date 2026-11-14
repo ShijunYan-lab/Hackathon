@@ -27,6 +27,9 @@ def response(request_id: str, state: StateView, data: dict) -> dict:
                           world_version=state.world_version, data=data).model_dump(mode="json")
 
 
+CHECKPOINT_RETRY_LIMIT = 64
+
+
 class WorldStore:
     def __init__(self, path: str | Path, combat_rules: CombatRules | None = None, clock=None):
         self.path = Path(path)
@@ -51,6 +54,12 @@ class WorldStore:
                     body TEXT NOT NULL, response TEXT NOT NULL,
                     PRIMARY KEY(scope, id)
                 );
+                CREATE TABLE IF NOT EXISTS checkpoint_requests (
+                    scope TEXT NOT NULL, id TEXT NOT NULL,
+                    body TEXT NOT NULL, response TEXT NOT NULL,
+                    PRIMARY KEY(scope, id)
+                );
+                CREATE INDEX IF NOT EXISTS checkpoint_requests_by_scope ON checkpoint_requests(scope);
                 CREATE TABLE IF NOT EXISTS world_combat_rules (
                     world_id TEXT PRIMARY KEY, rules TEXT NOT NULL
                 );
@@ -77,7 +86,10 @@ class WorldStore:
         with self.connection(write=True) as connection:
             for row in connection.execute('SELECT state FROM worlds').fetchall():
                 economy.initialize(connection, StateView.model_validate_json(row[0]))
-            for row in connection.execute("SELECT world_id, body FROM events ORDER BY world_id, seq").fetchall():
+            for row in connection.execute("""SELECT e.world_id, e.body FROM events e
+                WHERE NOT EXISTS (SELECT 1 FROM knowledge_index k
+                    WHERE k.world_id=e.world_id AND k.event_id=e.id)
+                ORDER BY e.world_id, e.seq"""):
                 knowledge.record_event(connection, row[0], Event.model_validate_json(row[1]))
 
     @contextmanager
@@ -108,6 +120,10 @@ class WorldStore:
             "SELECT body, response FROM requests WHERE scope=? AND id=?",
             (scope, body.request_id),
         ).fetchone()
+        if previous is None and scope.endswith('/commands'):
+            previous = connection.execute(
+                'SELECT body, response FROM checkpoint_requests WHERE scope=? AND id=?',
+                (scope, body.request_id)).fetchone()
         if previous is None:
             return None
         if previous["body"] != encode(body.model_dump(mode="json")):
@@ -192,15 +208,21 @@ class WorldStore:
                     return duplicate
             if body.expected_world_version != state.world_version:
                 raise WorldError("VERSION_CONFLICT", "世界版本已变化，请刷新状态。", 409)
-            seq = connection.execute("SELECT MAX(seq) FROM events WHERE world_id=?", (world_id,)).fetchone()[0] + 1
             if body.kind == "CHECKPOINT":
-                moved_ids = apply_checkpoint(state, body.payload, json.loads(row["region"]))
-                events = [Event(id="evt_" + uuid4().hex, event_seq=seq, tick=state.tick,
-                                type="positions_checkpointed", actor_id=state.player_id,
-                                facts={"actor_ids": moved_ids, "region_id": body.payload["region_id"],
-                                       "positions": body.payload["positions"]},
-                                caused_by=[], witness_ids=[state.player_id])]
-            elif body.kind == "HIT":
+                apply_checkpoint(state, body.payload, json.loads(row["region"]))
+                state.world_version += 1
+                connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))
+                result = response(body.request_id, state, {
+                    "command_result": {"status": "applied", "applied": True},
+                    "events": [], "state": state.model_dump(mode="json")})
+                connection.execute("INSERT INTO checkpoint_requests VALUES (?, ?, ?, ?)",
+                    (scope, body.request_id, encode(body.model_dump(mode="json")), encode(result)))
+                connection.execute("""DELETE FROM checkpoint_requests WHERE scope=? AND rowid IN (
+                    SELECT rowid FROM checkpoint_requests WHERE scope=? ORDER BY rowid DESC LIMIT -1 OFFSET ?)""",
+                    (scope, scope, CHECKPOINT_RETRY_LIMIT))
+                return result
+            seq = connection.execute("SELECT MAX(seq) FROM events WHERE world_id=?", (world_id,)).fetchone()[0] + 1
+            if body.kind == "HIT":
                 events = self.apply_hit(connection, state, body, json.loads(row["region"]), seq)
             elif body.kind in ("PICKUP", "EQUIP", "GIVE"):
                 events = apply_item_command(state, body.kind, body.payload, seq)
@@ -298,11 +320,12 @@ class WorldStore:
     def events(self, world_id: str, after_seq: int, limit: int, debug: bool) -> dict:
         with self.connection() as connection:
             state = StateView.model_validate_json(self.world_row(connection, world_id)["state"])
-            rows = connection.execute("SELECT body FROM events WHERE world_id=? AND seq>? ORDER BY seq",
-                                      (world_id, after_seq)).fetchall()
+            visibility = "" if debug else (
+                " AND EXISTS (SELECT 1 FROM json_each(events.body, '$.witness_ids') WHERE value=?)")
+            args = (world_id, after_seq, limit + 1) if debug else (world_id, after_seq, state.player_id, limit + 1)
+            rows = connection.execute(
+                "SELECT body FROM events WHERE world_id=? AND seq>?" + visibility + " ORDER BY seq LIMIT ?", args)
             visible = [Event.model_validate_json(row["body"]) for row in rows]
-            if not debug:
-                visible = [event for event in visible if state.player_id in event.witness_ids]
             page = visible[:limit]
             return response("events", state, {"events": [event.model_dump(mode="json") for event in page],
                 "next_after_seq": page[-1].event_seq if page else after_seq, "has_more": len(visible) > limit})

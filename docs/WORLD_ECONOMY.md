@@ -34,8 +34,8 @@ POST /v1/worlds/{id}/craft：request_id、expected_world_version、actor_id、re
 
 ## 世界导演
 
-RESOURCE_NEED 只为缺少铁资源的存活组织创建一份铁的需求记录，重复 open 需求被拒绝。它不会凭空增加资源；当前需求是可追踪的待办，自动组织采购与履约属于后续扩展。
+RESOURCE_NEED 为活跃组织创建资源缺口；resource 默认 iron，quantity 为期望库存（1—20），受 director_config.resource_limits 限制。已有 open 需求被拒绝，实际库存足够时也拒绝。需求不发放资源。POST /v1/worlds/{id}/supply 使用 request_id、expected_world_version、actor_id、org_id、item_ids：人物须在代表附近两格内，扣除实际持有的对应材料，增加组织库存，部分供应保留剩余需求，全部完成后关闭剧情线索。B 也可用 TRANSFER(target_id=组织, params={item_id}) 履约。
 
-MIGRATION 必须满足：配置 location 带 migration_entry、位置属于当前地图且可走、NPC 存活数小于 npc_alive_limit，并引用一个未用于迁入的已死亡 NPC 事件。事务内再次检查，生成全新 NPC ID 和武器，保留原人物死亡档案；同一死亡来源不能反复生成人物。随机状态继续保存。没有入口配置时不会迁入，正式两个村庄、森林、遗迹的位置仍由 D 提供。
+MIGRATION 必须满足：配置 location 带 migration_entry、位置属于当前地图且可走、NPC 存活数小于 npc_alive_limit，并引用一个未用于迁入的已死亡 NPC 事件或仍未解决的 resource_need_created 事件。事务内再次检查，生成全新 NPC ID 和武器，保留原人物死亡档案；同一来源不能反复生成人物；新人物可获知吸引其迁入的需求，其他 NPC 不会自动全知。随机状态继续保存。没有入口配置时不会迁入，正式两个村庄、森林、遗迹的位置仍由 D 提供。
 
 测试中地点配置与材料库存均注明为合成夹具；真实 Godot 地点/移动与 B 输出需组装验收。复杂经济、组织分裂和自动需求履约未标为完成。

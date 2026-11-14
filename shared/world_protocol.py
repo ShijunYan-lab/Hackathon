@@ -31,3 +31,9 @@ class OfferRequest(VersionedRequest):
 class CraftRequest(VersionedRequest):
     actor_id: str
     recipe_id: str
+
+
+class SupplyRequest(VersionedRequest):
+    actor_id: str
+    org_id: str
+    item_ids: list[str] = Field(min_length=1, max_length=20)

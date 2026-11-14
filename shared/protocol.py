@@ -27,7 +27,7 @@ class DialogueRequest(VersionedRequest):
 
 class AdvanceRequest(VersionedRequest):
     reason: Literal["idle_timer", "major_event", "rest", "debug_step"]
-    trigger_event_ids: list[str] = Field(default_factory=list)
+    trigger_event_ids: list[str] = Field(default_factory=list, max_length=16)
 
 class SaveRequest(VersionedRequest):
     label: str = Field(min_length=1, max_length=80)

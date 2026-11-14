@@ -2,7 +2,7 @@
 
 岗位已认领，姓名待填写。分支 feature/c-world，跟踪 origin/feature/c-world。
 
-**步骤 01—13 的 C 后端已交付；步骤 14 的 Python 3.11、本机 Windows 构建和接口验证已完成。步骤 15 等待 A/B/D 真实组装，步骤 16 按用户最新要求先于团队联调制作。**
+**步骤 01—13 的最小 C 后端已交付（世界 Agent 的真实模型与持续后果正在补强，不代表完整游戏已完成）；步骤 14 的 Python 3.11、本机 Windows 构建和接口验证已完成。步骤 15 等待 A/B/D 真实组装，步骤 16 按用户最新要求先于团队联调制作。**
 
 2026-11-14：Python 3.11.11 + requirements.txt 固定版本完整测试 103 passed；基础与评审协议检查通过。服务已使用项目独立 runtime/venv311 环境运行于 http://127.0.0.1:8765/docs，当前模型 fallback。可运行 server.api.world_smoke 和 server.api.evaluation_smoke 查看实际接口流程；脚本动作报告明确为合成输入。
 
@@ -207,3 +207,13 @@ PICKUP/EQUIP/GIVE 已接现有 commands，校验存活、距离和归属；装�
 用户报告建立评审后界面闪烁、按钮难以操作。原因是 1.5 秒轮询调用 action(refresh)，每次都会禁用所有按钮并重绘多个区域。现改为仅在运行/学习阶段静默轮询会话，未变化不绘制，防重入且丢弃切换世界后的旧响应；ready/complete/rolled_back 停止轮询。新增中文阶段、操作说明、中心区域下一步按钮，按阶段禁用不适用的操作，明确模拟任务需手动报告，45 秒未完成会超时。
 
 验证：Node 前端逻辑测试通过（ready 不轮询、按钮状态、未变数据不重绘、单在途、过期响应隔离）；11 项页面/运输/学习/回退测试通过；JavaScript 语法检查通过。页面脚本版本参数更新，刷新浏览器即可生效。尚未补做真实浏览器视觉验收。
+
+## 步骤 06、08、13、16 · 世界导演与长局数据
+
+本轮修改 C 所有权文件：server/world/model_gateway.py、director.py、director_context.py、director_execution.py、advance.py、agent_runtime.py、economy.py、tasks.py、server/storage/knowledge.py、server/main.py、shared/world_protocol.py；增加相关后端测试、模型启动脚本、API 文档和 Demo 导演面板。
+接口增量：RESOURCE_NEED 新增 resource/quantity、MIGRATION 新增 npc_name；POST /v1/worlds/{id}/supply 按实际物品交付，保持旧字段默认兼容。模型只建议，C 校验来源、人口、地点、真实库存、版本和请求去重后执行。正式地图仍由 D 提供。
+
+- Windows 当前账户可用 `pwsh -NoProfile -File server/start_world_model.ps1 -DebugViews` 启动 DeepSeek 导演。默认只监听本机。凭据保存在忽略的 runtime/director-key.dpapi，换机器或账户需重新安全输入。进入 /demo/ 创建世界并推进三次，查看导演模式、摘要来源和执行记录。B 的 NPC provider 和 D 的正式地点、迁入入口仍待组装。
+- 前版真实 DeepSeek 在第 3 回合约 3.8 秒返回有来源的摘要；普通新世界没有合理变化时可以没有建议。需求、迁入、材料履约和剧情线索闭合由后端测试替身验证。
+- CHECKPOINT 只更新当前位置，最近 64 次保留原响应。历史旧记录继续可读。导演按近期事实、未解决线索、记忆和需求读取来源；NPC 读取自身最近 8 个事件和最多 12 条记忆，记忆来源最多 24 个。模型上下文超过 96 KiB 时进入 fallback。战斗、剧情、任务等实际历史及人工存档仍会增长，长期归档另行设计。
+- Python 3.11 完整测试 111 项通过，Node Demo 回归通过。1,000 次位置同步后仍只有 1 条初始事件、1 条初始记忆、64 条位置重试响应。涉及 storage/sqlite.py、storage/snapshots.py、storage/knowledge.py、world/advance.py、world/agent_runtime.py 和 API 合同。正式 Godot 移动、联调和 Windows 新包尚未验证。

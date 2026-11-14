@@ -3,15 +3,15 @@ import asyncio
 import json
 from uuid import uuid4
 
-from shared.protocol import Event, StateView
-from server.storage import knowledge
+from shared.protocol import StateView
 from server.storage.sqlite import response
 from server.world.agent_runtime import build_context
 from server.world.commands import WorldError
-from server.world.director import DirectorConfig, DirectorContext, DirectorResult, WorldDirector
+from server.world.director import DirectorConfig, DirectorResult, WorldDirector
 from server.world.tasks import event
 from server.world import economy
 from server.world.director_execution import execute as execute_director
+from server.world.director_context import build as build_director_context
 
 
 SCHEMA = """
@@ -71,15 +71,16 @@ class WorldTurns:
             runtime = self.runtime(connection, world_id)
             if runtime["evaluation_active"]:
                 raise WorldError("EVALUATION_FROZEN", "评审世界暂停普通世界推进。", 409)
-            events = [Event.model_validate_json(row[0]) for row in connection.execute(
-                "SELECT body FROM events WHERE world_id=? ORDER BY seq", (world_id,))]
-            if not set(body.trigger_event_ids) <= {value.id for value in events}:
+            seq = connection.execute("SELECT MAX(seq) FROM events WHERE world_id=?", (world_id,)).fetchone()[0] + 1
+            triggers = set(body.trigger_event_ids)
+            if any(connection.execute("SELECT 1 FROM events WHERE world_id=? AND id=?", (world_id, source)).fetchone() is None
+                   for source in triggers):
                 raise WorldError("UNKNOWN_EVENT", "触发事件不属于当前世界。")
-            story = knowledge.story_view(connection, world_id)
             config = DirectorConfig.model_validate_json(runtime["config"])
             state.tick += 1
-            director_context = DirectorContext(state=state, events=events, **story,
-                                               allowed_proposals=["FOLLOW_UP", 'RESOURCE_NEED', 'MIGRATION'])
+            major_event = body.reason == "major_event" and bool(triggers)
+            due = config.enabled and (major_event or state.tick - runtime["last_director_tick"] >= config.interval_ticks)
+            director_context = build_director_context(connection, state, config, triggers) if due and self.provider else None
             eligible = sorted((actor for actor in state.actors if actor.kind == "npc"
                                and actor.alive and not actor.task_id and actor.behavior != "attacking"),
                               key=lambda actor: actor.id)
@@ -96,10 +97,14 @@ class WorldTurns:
             decision, mode = await self.agents.gateway.call("plan", context, triggers) if context else (None, "fallback")
             director = WorldDirector(config, self.provider)
             async def assess():
+                if director_context is None:
+                    reason = 'DISABLED' if not config.enabled else 'PROVIDER_NOT_CONFIGURED' if due else 'NOT_DUE'
+                    return DirectorResult(world_id=world_id, expected_world_version=body.expected_world_version,
+                        mode='fallback', status='unavailable' if due else 'skipped', reason_code=reason)
                 async with self.agents.gateway.semaphore:
                     return await director.assess(director_context,
                         last_assessed_tick=runtime["last_director_tick"],
-                        major_event=body.reason == "major_event" and bool(body.trigger_event_ids))
+                        major_event=major_event)
             try:
                 result = await asyncio.wait_for(assess(), max(.001, deadline - asyncio.get_running_loop().time()))
             except asyncio.TimeoutError:
@@ -112,7 +117,6 @@ class WorldTurns:
                 if self.runtime(connection, world_id)["evaluation_active"]:
                     raise WorldError("EVALUATION_FROZEN", "评审已开始，普通推进已取消。", 409)
                 state.tick += 1
-                seq = events[-1].event_seq + 1
                 emitted, task_ids, summaries = [], [], []
                 if decision is not None:
                     state, planned, task_ids, intent_status = self.agents.apply_decision(

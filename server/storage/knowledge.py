@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS npc_memories (
     world_id TEXT NOT NULL, npc_id TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL,
     PRIMARY KEY(world_id, npc_id, id)
 );
+CREATE INDEX IF NOT EXISTS npc_memories_by_actor ON npc_memories(world_id, npc_id);
 CREATE TABLE IF NOT EXISTS world_memories (
     world_id TEXT NOT NULL, id TEXT NOT NULL, seq INTEGER NOT NULL, body TEXT NOT NULL,
     PRIMARY KEY(world_id, id)
@@ -79,6 +80,10 @@ def record_event(connection, world_id, event: Event):
         thread_id = stable_id("thread", "task", event.facts["task_id"])
         topic = f"任务 {event.facts['task_id']}"
         status = {"task_scheduled": "open", "task_succeeded": "resolved"}.get(event.type, "abandoned")
+    elif event.type in ('resource_need_created', 'resource_need_supplied', 'resource_need_fulfilled'):
+        thread_id = stable_id('thread', 'resource_need', event.facts['org_id'])
+        topic = f"组织 {event.facts['org_id']} 的 {event.facts['resource']} 补给需求"
+        status = 'resolved' if event.type == 'resource_need_fulfilled' else 'open'
     else:
         return
     previous = connection.execute("SELECT body FROM story_threads WHERE world_id=? AND id=?",
@@ -98,16 +103,34 @@ def known_events(connection, world_id, npc_id):
     return [Event.model_validate_json(row[0]) for row in rows]
 
 
-def memories(connection, world_id, npc_id):
-    rows = connection.execute("SELECT body FROM npc_memories WHERE world_id=? AND npc_id=? ORDER BY rowid",
-                              (world_id, npc_id)).fetchall()
-    return [json.loads(row[0]) for row in rows]
+def memories(connection, world_id, npc_id, limit=-1):
+    rows = connection.execute("""SELECT body FROM npc_memories WHERE world_id=? AND npc_id=?
+        ORDER BY rowid DESC LIMIT ?""", (world_id, npc_id, limit)).fetchall()
+    return [json.loads(row[0]) for row in reversed(rows)]
+
+
+def knows_event(connection, world_id, npc_id, event_id):
+    return connection.execute("""SELECT 1 FROM event_knowledge
+        WHERE world_id=? AND npc_id=? AND event_id=?""", (world_id, npc_id, event_id)).fetchone() is not None
+
+
+def planning_events(connection, world_id, npc_id, sources):
+    recent = connection.execute("""SELECT e.body FROM events e JOIN event_knowledge k
+        ON e.world_id=k.world_id AND e.id=k.event_id
+        WHERE k.world_id=? AND k.npc_id=? AND json_extract(e.body, '$.type') != 'positions_checkpointed'
+        ORDER BY e.seq DESC LIMIT 8""", (world_id, npc_id))
+    selected = {entry.id: entry for entry in (Event.model_validate_json(row[0]) for row in recent)}
+    for source in sources - selected.keys():
+        if knows_event(connection, world_id, npc_id, source):
+            row = connection.execute('SELECT body FROM events WHERE world_id=? AND id=?',
+                                     (world_id, source)).fetchone()
+            selected[source] = Event.model_validate_json(row[0])
+    return sorted(selected.values(), key=lambda event: event.event_seq)
 
 
 def save_memory_proposals(connection, world_id, npc_id, proposals: list[MemoryProposal]):
-    known = {event.id for event in known_events(connection, world_id, npc_id)}
     for proposal in proposals:
-        if not set(proposal.source_event_ids) <= known:
+        if any(not knows_event(connection, world_id, npc_id, source) for source in proposal.source_event_ids):
             raise WorldError("UNKNOWN_EVIDENCE", "记忆引用了该 NPC 未知的事件。")
         # The same root sources do not become independent evidence when phrased again.
         memory_id = stable_id("mem_proposal", npc_id, proposal.source_type, sorted(set(proposal.source_event_ids)))

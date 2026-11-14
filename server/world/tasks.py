@@ -82,6 +82,8 @@ def apply_intent(connection, state, context, intent, region, seq, source_id):
             raise WorldError('INVALID_INTENT', '退出组织不需要额外参数。')
         return economy.leave(state, actor.id, intent.target_id, seq), []
     if intent.action == "TRANSFER":
+        if any(org.id == intent.target_id for org in state.organizations) and set(intent.params) == {'item_id'}:
+            return economy.supply(connection, state, actor.id, intent.target_id, [intent.params['item_id']], seq), []
         if set(intent.params) == {'item_id', 'price'}:
             proposal = OfferRequest(request_id=source_id, expected_world_version=state.world_version,
                 actor_id=actor.id, target_id=intent.target_id, kind='trade', **intent.params)

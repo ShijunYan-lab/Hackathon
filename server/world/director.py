@@ -27,11 +27,17 @@ class DirectorConfig(DTO):
     npc_alive_limit: int = Field(default=10, ge=1)
     max_proposals: int = Field(default=2, ge=1, le=4)
     locations: list[MapLocation] = Field(default_factory=list)
+    resource_limits: dict[str, int] = Field(default_factory=lambda: {'iron': 20, 'wood': 20, 'herb': 20})
+    event_budget: int = Field(default=128, ge=16, le=512)
+    memory_budget: int = Field(default=24, ge=1, le=64)
+    thread_budget: int = Field(default=12, ge=1, le=32)
 
     @model_validator(mode="after")
     def unique_locations(self):
         if len({place.id for place in self.locations}) != len(self.locations):
             raise ValueError("Location IDs must be unique")
+        if any(not key or not 1 <= value <= 20 for key, value in self.resource_limits.items()):
+            raise ValueError('Resource limits must have names and quantities between 1 and 20')
         return self
 
     @classmethod
@@ -62,6 +68,9 @@ class DirectorContext(DTO):
     memories: list[WorldMemory] = Field(default_factory=list)
     story_threads: list[StoryThread] = Field(default_factory=list)
     locations: list[MapLocation] = Field(default_factory=list)
+    resource_needs: list[dict] = Field(default_factory=list)
+    history_scope: str = 'full'
+    execution_rules: dict = Field(default_factory=dict)
     allowed_proposals: list[Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION"]]
 
     @model_validator(mode="after")
@@ -90,6 +99,9 @@ class DirectorProposal(DTO):
     reason_summary: str = Field(min_length=1, max_length=300)
     target_id: str | None = None
     location_id: str | None = None
+    resource: str = 'iron'
+    quantity: int = Field(default=1, ge=1, le=20)
+    npc_name: str = Field(default='迁入旅人', min_length=1, max_length=30)
 
 
 class DirectorDecision(DTO):
@@ -145,6 +157,8 @@ def validate_decision(context: DirectorContext, decision: DirectorDecision,
             if place is None or "migration_entry" not in place.tags:
                 raise ValueError("Migration requires a configured entry")
         elif proposal.kind == "RESOURCE_NEED":
+            if proposal.resource not in config.resource_limits or proposal.quantity > config.resource_limits[proposal.resource]:
+                raise ValueError('Resource request exceeds configured capabilities')
             organization = organizations.get(proposal.target_id)
             if organization is None or organization.status != "active":
                 raise ValueError("Resource need requires an active organization")
@@ -183,9 +197,16 @@ class WorldDirector:
             raw = await asyncio.wait_for(
                 self.provider(snapshot.model_copy(deep=True)), timeout=self.config.timeout_s,
             )
-        except Exception:
+        except asyncio.TimeoutError:
+            result.status = 'unavailable'
+            result.reason_code = 'MODEL_TIMEOUT'
+            return result
+        except Exception as exc:
             result.status = "unavailable"
-            result.reason_code = "PROVIDER_FAILED"
+            code = getattr(exc, 'code', '')
+            result.reason_code = code if code in {'MODEL_AUTH_FAILED', 'MODEL_RATE_LIMITED',
+                'MODEL_HTTP_FAILED', 'MODEL_TIMEOUT', 'MODEL_CONNECTION_FAILED', 'MODEL_INVALID_OUTPUT',
+                'MODEL_CONTEXT_TOO_LARGE'} else 'PROVIDER_FAILED'
             return result
         try:
             decision = DirectorDecision.model_validate(raw)

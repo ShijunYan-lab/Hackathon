@@ -22,7 +22,7 @@ from server.storage.snapshots import Snapshots
 from server.evaluation.scenario import TransportScenario
 from server.evaluation.service import Evaluations
 from shared.evaluation_protocol import EvaluationCreateRequest, EvaluationRunRequest, EvaluationRollbackRequest
-from shared.world_protocol import OfferRequest, CraftRequest
+from shared.world_protocol import OfferRequest, CraftRequest, SupplyRequest
 from server.world.economy import EconomyAPI
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
@@ -30,6 +30,7 @@ from server.world.combat import CombatRules
 from server.world.agent_runtime import AgentGateway, AgentRuntime
 from server.world.advance import WorldTurns
 from server.world.director import DirectorConfig
+from server.world.model_gateway import DirectorModel
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,7 +60,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                                                                     timeout_s=agent_timeout_s))
         config = director_config or DirectorConfig.from_file(os.environ.get(
             "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
-        app.state.turns = WorldTurns(app.state.agents, config, director_provider)
+        app.state.turns = WorldTurns(app.state.agents, config, director_provider or DirectorModel.from_environment())
         app.state.snapshots = Snapshots(app.state.store)
         app.state.economy = EconomyAPI(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
@@ -133,6 +134,9 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                              "pickup", "equip", "give", "story", "dialogue", "task_report", "advance", "director",
                              'save', 'load', 'evaluation', 'learning', 'rollback', 'offers', 'craft', 'migration'],
             "model_connected": mode == "live", "map_fixture": app.state.map_fixture,
+              "debug_views": allow_debug,
+              "director_model": getattr(app.state.turns.provider, 'model', None),
+              "director_configured": app.state.turns.provider is not None,
         })
 
     @app.post("/v1/worlds")
@@ -163,6 +167,10 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post('/v1/worlds/{world_id}/craft')
     def craft(world_id: str, body: CraftRequest):
         return app.state.economy.mutate(world_id, body, 'craft')
+
+    @app.post('/v1/worlds/{world_id}/supply')
+    def supply(world_id: str, body: SupplyRequest):
+        return app.state.economy.mutate(world_id, body, 'supply')
 
     @app.post('/v1/saves/{save_id}/load')
     def load(save_id: str, body: LoadRequest):

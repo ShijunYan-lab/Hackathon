@@ -53,7 +53,7 @@ def test_update_restart_and_durable_retry(tmp_path):
         assert state["actors"][0]["tile"] == {"x": 9.5, "y": 8.5}
         assert state["world_version"] == 1
         events = restarted.get(f"/v1/worlds/{created['world_id']}/events").json()["data"]["events"]
-        assert [event["type"] for event in events] == ["world_created", "positions_checkpointed"]
+        assert [event["type"] for event in events] == ["world_created"]
 
 
 def test_concurrent_duplicate_command_once(client):
@@ -64,6 +64,30 @@ def test_concurrent_duplicate_command_once(client):
         results = list(pool.map(lambda _: client.post(path, json=body).json(), range(4)))
     assert all(result == results[0] for result in results)
     assert results[0]["world_version"] == 1
+
+
+def test_position_stream_keeps_only_current_state_and_bounded_retries(client):
+    created = new_world(client)
+    world_id = created["world_id"]
+    path = f"/v1/worlds/{world_id}"
+    store = client.app.state.store
+    from shared.protocol import CommandRequest
+
+    body = checkpoint(created)
+    first = body.copy()
+    for index in range(1000):
+        body = dict(body, request_id=f"move-{index}", expected_world_version=index)
+        body["payload"]["positions"][0]["tile"]["x"] = 9.5 + index % 2
+        latest = store.command(world_id, CommandRequest.model_validate(body))
+    assert latest["world_version"] == 1000
+    assert latest["data"]["state"]["actors"][0]["tile"]["x"] == 10.5
+    assert client.post(path + "/commands", json=body).json() == latest
+    assert client.post(path + "/commands", json=first).json()["error"]["code"] == "VERSION_CONFLICT"
+    with store.connection() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM checkpoint_requests").fetchone()[0] == 64
+        assert connection.execute("SELECT COUNT(*) FROM requests").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM world_memories").fetchone()[0] == 1
 
 
 def test_conflicts_and_atomic_failure(client):

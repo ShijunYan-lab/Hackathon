@@ -50,6 +50,9 @@ class AgentGateway:
             except (ImportError, AttributeError):
                 self.last_mode = "fallback"
                 return AgentDecision(reply="当前模型未接入，我会暂时等待。", intent={"action": "WAIT"}), "fallback"
+        if len(context.model_dump_json().encode('utf-8')) > 96 * 1024:
+            self.last_mode = "fallback"
+            return AgentDecision(reply="当前信息超过处理预算，我会暂时等待。", intent={"action": "WAIT"}), "fallback"
         async def invoke():
             async with self.semaphore:
                 raw = await provider(context.model_copy(deep=True), argument)
@@ -74,17 +77,28 @@ def build_context(connection, state, npc_id, extra_events=()):
     if npc.kind != "npc":
         raise WorldError("NPC_NOT_FOUND", "该角色不是 NPC。", 404)
     stored = profile(connection, state.world_id, npc_id)
-    selected_memories = knowledge.memories(connection, state.world_id, npc_id)[-12:]
-    known = knowledge.known_events(connection, state.world_id, npc_id)
-    sources = {source for memory in selected_memories for source in memory["source_event_ids"]}
-    selected_ids = sources | {value.id for value in known[-8:]}
-    known = [value for value in known if value.id in selected_ids]
+    selected_memories, sources = [], set()
+    for memory in reversed(knowledge.memories(connection, state.world_id, npc_id, limit=12)):
+        candidate = sources | set(memory['source_event_ids'])
+        if len(candidate) <= 24:
+            sources = candidate
+            selected_memories.append(memory)
+    selected_memories.reverse()
+    known = knowledge.planning_events(connection, state.world_id, npc_id, sources)
     entities = [value.model_dump(mode="json") for value in [*state.actors, *state.sites]
                 if value.region_id == npc.region_id and math.hypot(
                     value.tile.x - npc.tile.x, value.tile.y - npc.tile.y) <= 6]
     visible_ids = {value['id'] for value in entities}
     entities.extend(org.model_dump(mode='json') for org in state.organizations
                     if org.id in npc.org_ids or org.representative_id in visible_ids)
+    invitations = {row[0] for row in connection.execute("""SELECT json_extract(e.body, '$.facts.org_id')
+        FROM migration_sources m JOIN events e ON e.world_id=m.world_id AND e.id=m.event_id
+        WHERE m.world_id=? AND m.npc_id=? AND json_extract(e.body, '$.type')='resource_need_created'""",
+        (state.world_id, npc_id))}
+    for row in connection.execute('SELECT body FROM resource_needs WHERE world_id=?', (state.world_id,)):
+        demand = json.loads(row[0])
+        if demand['status'] == 'open' and (any(knowledge.knows_event(connection, state.world_id, npc_id, source) for source in demand['source_event_ids']) or demand['org_id'] in invitations):
+            entities.append({'id': 'need:' + demand['org_id'], 'kind': 'resource_need', **demand})
     for row in connection.execute('SELECT body FROM offers WHERE world_id=?', (state.world_id,)):
         value = json.loads(row[0])
         if npc_id in (value['actor_id'], value['target_id']) and value['status'] == 'pending' and value['expires_tick'] > state.tick:

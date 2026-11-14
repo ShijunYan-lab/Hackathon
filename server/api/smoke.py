@@ -34,7 +34,7 @@ def main():
     saved = call(path + "/state")["data"]["state"]
     assert saved["actors"][0]["tile"] == tile
     events = call(path + "/events")["data"]["events"]
-    assert len(events) == 2
+    assert len(events) == 1
     print(json.dumps({"result": "PASS", "mode": health["mode"], "world_id": state["world_id"],
                       "world_version": saved["world_version"], "event_count": len(events),
                       "state_url": "http://127.0.0.1:8765" + path + "/state"}, ensure_ascii=False, indent=2))

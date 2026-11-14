@@ -91,7 +91,7 @@ def test_timeout_returns_safe_status():
         await asyncio.sleep(1)
     result = asyncio.run(WorldDirector(DirectorConfig(timeout_s=0.001), delayed).assess(
         context(), last_assessed_tick=0))
-    assert result.reason_code == "PROVIDER_FAILED"
+    assert result.reason_code == "MODEL_TIMEOUT"
     assert result.decision is None
 
 

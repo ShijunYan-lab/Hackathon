@@ -20,14 +20,18 @@ def execute(connection, state, proposal, config, region, seq):
     try:
         if proposal.kind == 'RESOURCE_NEED':
             org = organization(candidate, proposal.target_id)
-            if org.resources.get('iron', 0) > 0:
-                raise WorldError('NEED_NOT_PRESENT', '组织已有铁资源，不创建重复需求。')
+            if proposal.resource not in config.resource_limits or proposal.quantity > config.resource_limits[proposal.resource]:
+                raise WorldError('RESOURCE_NOT_SUPPORTED', '资源或需求量超出配置。')
+            if org.resources.get(proposal.resource, 0) >= proposal.quantity:
+                raise WorldError('NEED_NOT_PRESENT', '组织资源已达到需求量。')
             prior = connection.execute('SELECT body FROM resource_needs WHERE world_id=? AND org_id=?',
                                        (state.world_id, org.id)).fetchone()
             if prior and json.loads(prior[0])['status'] == 'open':
                 raise WorldError('NEED_ALREADY_OPEN', '组织已有待处理需求。')
             actual = event(candidate, 'resource_need_created', seq, org.representative_id, None,
-                {'org_id': org.id, 'resource': 'iron', 'quantity': 1, 'status': 'open'}, proposal.source_event_ids, [])
+                {'org_id': org.id, 'resource': proposal.resource,
+                 'quantity': proposal.quantity - org.resources.get(proposal.resource, 0), 'status': 'open',
+                 'reason_summary': proposal.reason_summary}, proposal.source_event_ids, [org.representative_id])
             connection.execute('INSERT OR REPLACE INTO resource_needs VALUES (?, ?, ?)',
                 (state.world_id, org.id, json.dumps({**actual.facts, 'source_event_ids': [actual.id]})))
         elif proposal.kind == 'MIGRATION':
@@ -47,16 +51,24 @@ def execute(connection, state, proposal, config, region, seq):
                         actor.id == source_event.target_id and actor.kind == 'npc' and not actor.alive for actor in state.actors):
                     source = source_id
                     break
+                if source_event and source_event.type == 'resource_need_created' and not used:
+                    demand = connection.execute('SELECT body FROM resource_needs WHERE world_id=? AND org_id=?',
+                        (state.world_id, source_event.facts.get('org_id'))).fetchone()
+                    if demand and json.loads(demand[0])['status'] == 'open' and source_id in json.loads(demand[0])['source_event_ids']:
+                        source = source_id
+                        break
             if source is None:
-                raise WorldError('NO_MIGRATION_CAUSE', '迁入需要尚未使用的人物死亡来源。')
+                raise WorldError('NO_MIGRATION_CAUSE', '迁入需要尚未使用的死亡或未解决资源需求来源。')
             npc_id = 'npc_' + uuid4().hex
-            npc = ActorState(id=npc_id, name='迁入旅人', kind='npc', alive=True, hp=45, max_hp=45, armor=0,
+            npc = ActorState(id=npc_id, name=proposal.npc_name, kind='npc', alive=True, hp=45, max_hp=45, armor=0,
                 region_id=location.region_id, tile=location.tile, appearance_key='traveler')
             candidate.actors.append(npc)
             apply_checkpoint(candidate, {'region_id': location.region_id, 'positions': [
                 {'actor_id': npc_id, 'tile': location.tile.model_dump()}]}, region)
             actual = event(candidate, 'npc_migrated', seq, npc_id, None,
-                {'location_id': location.id, 'reused_death_identity': False}, proposal.source_event_ids, [npc_id])
+                {'location_id': location.id, 'reused_death_identity': False,
+                 'invitation_org_id': source_event.facts.get('org_id') if source_event.type == 'resource_need_created' else None,
+                 'reason_summary': proposal.reason_summary}, proposal.source_event_ids, [npc_id])
             rng = random.Random()
             rng.setstate(tuple_tree(json.loads(connection.execute('SELECT rng_state FROM worlds WHERE id=?', (state.world_id,)).fetchone()[0])))
             weapon = generate_weapon(rng, 'item_' + uuid4().hex, npc.id, actual.id)

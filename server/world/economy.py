@@ -184,6 +184,36 @@ def reconcile(connection, state, events):
                                {'offer_id': row['id'], 'reason': 'EXPIRED_OR_AUTHORITY_CHANGED'}, value['source_event_ids']))
 
 
+def supply(connection, state, actor_id, org_id, item_ids, seq):
+    actor = living_actor(state, actor_id)
+    org = organization(state, org_id)
+    representative = living_actor(state, org.representative_id)
+    require_near(actor, representative.region_id, representative.tile)
+    row = connection.execute('SELECT body FROM resource_needs WHERE world_id=? AND org_id=?',
+                             (state.world_id, org_id)).fetchone()
+    if row is None:
+        raise WorldError('NEED_NOT_FOUND', '该组织没有待补给需求。')
+    demand = json.loads(row[0])
+    if demand['status'] != 'open' or len(set(item_ids)) != len(item_ids) or len(item_ids) > demand['quantity']:
+        raise WorldError('NEED_INVALID', '需求已结束、物品重复或数量超过剩余需求。')
+    items = [item for item in state.items if item.id in item_ids]
+    if len(items) != len(item_ids) or any(item.owner_id != actor.id or item.base_type != 'material'
+                                         or item.material_id != demand['resource'] for item in items):
+        raise WorldError('INSUFFICIENT_MATERIALS', '必须交付本人实际持有的对应材料。')
+    demand['quantity'] -= len(items)
+    demand['status'] = 'fulfilled' if demand['quantity'] == 0 else 'open'
+    org.resources[demand['resource']] = org.resources.get(demand['resource'], 0) + len(items)
+    state.items = [item for item in state.items if item.id not in item_ids]
+    result = emit(state, 'resource_need_fulfilled' if demand['status'] == 'fulfilled' else 'resource_need_supplied',
+        seq, actor.id, representative.id, {'org_id': org_id, 'resource': demand['resource'],
+        'quantity': len(items), 'remaining': demand['quantity'], 'item_ids': item_ids},
+        list(dict.fromkeys([*demand['source_event_ids'], *[source for item in items for source in item.origin_event_ids]])))
+    demand['source_event_ids'].append(result.id)
+    connection.execute('UPDATE resource_needs SET body=? WHERE world_id=? AND org_id=?',
+                       (json.dumps(demand), state.world_id, org_id))
+    return [result]
+
+
 class EconomyAPI:
     def __init__(self, store):
         self.store = store
@@ -200,8 +230,12 @@ class EconomyAPI:
             if state.world_version != body.expected_world_version:
                 raise WorldError('VERSION_CONFLICT', '世界版本已变化。', 409)
             seq = connection.execute('SELECT MAX(seq) FROM events WHERE world_id=?', (world_id,)).fetchone()[0] + 1
-            events = offer(connection, state, body, seq) if operation == 'offers' else craft(
-                connection, state, body.actor_id, body.recipe_id, seq)
+            if operation == 'offers':
+                events = offer(connection, state, body, seq)
+            elif operation == 'supply':
+                events = supply(connection, state, body.actor_id, body.org_id, body.item_ids, seq)
+            else:
+                events = craft(connection, state, body.actor_id, body.recipe_id, seq)
             state.world_version += 1
             connection.execute('UPDATE worlds SET state=? WHERE id=?', (state.model_dump_json(), world_id))
             for entry in events:
