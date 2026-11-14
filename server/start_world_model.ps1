@@ -23,12 +23,13 @@ if ($Db) { $serverArgs += @('--db', $Db) }
 $useSharedModel = $Integrated -and $NpcDemo
 $previousNpcModel = @{}
 if ($useSharedModel) {
-    foreach ($name in @('LLM_API_KEY', 'LLM_BASE_URL', 'LLM_MODEL')) {
+    foreach ($name in @('LLM_API_KEY', 'LLM_BASE_URL', 'LLM_MODEL', 'LLM_TIMEOUT_SECONDS')) {
         $previousNpcModel[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
     }
     $env:LLM_API_KEY = $env:WORLD_MODEL_API_KEY
     $env:LLM_BASE_URL = $env:WORLD_MODEL_BASE_URL
     $env:LLM_MODEL = $env:WORLD_MODEL_NAME
+    if (-not $env:LLM_TIMEOUT_SECONDS) { $env:LLM_TIMEOUT_SECONDS = '25' }
 }
 try {
     if ($Integrated) { & 'runtime/venv311/Scripts/python.exe' 'release/run_backend.py' @serverArgs }

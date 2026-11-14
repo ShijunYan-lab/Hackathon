@@ -92,7 +92,17 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
         "SELECT body FROM npc_dialogue_turns WHERE world_id=? AND npc_id=? ORDER BY rowid DESC LIMIT 8",
         (state.world_id, npc_id))][::-1]
     selected_memories, sources = [], set()
-    for memory in reversed(knowledge.memories(connection, state.world_id, npc_id, limit=12)):
+    recent_memories = knowledge.memories(connection, state.world_id, npc_id, limit=12)
+    # Keep model-distilled experience retrievable after raw observations scroll away.
+    distilled = [json.loads(row[0]) for row in connection.execute(
+        "SELECT body FROM npc_memories WHERE world_id=? AND npc_id=? AND id LIKE 'mem_proposal_%' ORDER BY rowid DESC LIMIT 4",
+        (state.world_id, npc_id))]
+    memory_candidates = distilled + list(reversed(recent_memories))
+    seen_memory_ids = set()
+    for memory in memory_candidates:
+        if memory['id'] in seen_memory_ids:
+            continue
+        seen_memory_ids.add(memory['id'])
         candidate = sources | set(memory['source_event_ids'])
         if len(candidate) <= 24:
             sources = candidate
