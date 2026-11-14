@@ -1,5 +1,12 @@
 # C 岗完整任务与进度总表
 
+## 2026-11-14 本机整合游戏启动
+
+- 新增 `server/start_game.ps1`：自动查找 Downloads 下的 Godot，使用 C 的 Python 3.11 环境及本机加密凭据启动正式整合后端，等待健康检查后打开游戏。支持 `-GodotPath`；遇到其他地图占用端口时拒绝启动，不自动杀进程。
+- 在仓库根目录运行 `powershell -NoProfile -ExecutionPolicy Bypass -File server/start_game.ps1`。后端保持运行，存档为 `runtime/overworld.sqlite3`，接口页 http://127.0.0.1:8765/docs。
+- 已实际验证正式服务健康（overworld，320×224，导演配置已加载），独立游戏窗口 `The Unwritten Realm (DEBUG)` 打开且响应，客户端启动日志无报错。本次未重新执行完整游戏流程或真实模型请求；配置已加载不等同于模型调用成功。
+- 启动器针对本机已有环境；其他机器需先安装 Python 依赖、Godot 和本地模型凭据。未修改 D 的发布启动器。
+
 岗位已认领，姓名待填写。分支 feature/c-world，跟踪 origin/feature/c-world。
 
 **步骤 01—13 的最小 C 后端已交付（世界导演已通过 DeepSeek 实测，NPC 模型与正式游戏待联调）；步骤 14 的 Python 3.11、本机 Windows 构建和接口验证已完成。步骤 15 等待 A/B/D 真实组装，步骤 16 按用户最新要求先于团队联调制作。**
