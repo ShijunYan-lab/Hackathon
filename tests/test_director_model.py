@@ -16,7 +16,9 @@ def test_model_receives_real_history_and_validates_json_without_exposing_key():
     provider = DirectorModel('https://model.example/v1', 'test-model', 'test-secret', httpx.MockTransport(handler))
     result = asyncio.run(provider(context()))
     assert result.source_event_ids == ['evt_test']
-    assert 'cargo_lost' in captured[0]['messages'][1]['content']
+    payload = json.loads(captured[0]['messages'][1]['content'])
+    assert payload['events'][0]['type'] == 'cargo_lost'
+    assert 'items' not in payload['state']
     assert 'test-secret' not in json.dumps(captured)
 
 

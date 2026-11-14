@@ -112,3 +112,35 @@ def test_authored_npc_gets_visible_reachable_action_candidates(tmp_path):
         assert any(c['action']=='MOVE' and c['target_id']==state['player_id'] and c['params']=={} for c in candidates)
         assert all(c['target_id'] in {v['id'] for v in context.known_entities} for c in candidates)
         assert not any(c['target_id']==state['actors'][-1]['id'] for c in candidates)
+
+
+def test_known_supply_is_a_valid_parameterized_candidate(tmp_path):
+    from shared.protocol import ItemState, ItemStats
+    from server.world.tasks import event
+
+    app = make_app(tmp_path / 'supply.sqlite3')
+    with TestClient(app) as client:
+        state = new(client)
+        store = app.state.store
+        model = store.state(state['world_id'])
+        org = next(org for org in model.organizations if org.representative_id)
+        rep = next(actor for actor in model.actors if actor.id == org.representative_id)
+        npc = next(actor for actor in model.actors if actor.kind == 'npc' and actor.id != rep.id)
+        npc.tile = rep.tile
+        source = event(model, 'resource_need_created', 2, rep.id, None,
+                       {'org_id': org.id, 'resource': 'herb'}, [], [rep.id, npc.id])
+        item = ItemState(id='item_herb_test', name='药草', base_type='material', material_id='herb',
+                         quality='common', owner_id=npc.id, origin_event_ids=[source.id],
+                         stats=ItemStats(damage=0, armor=0, cooldown_s=1))
+        model.items.append(item)
+        with store.connection(write=True) as connection:
+            connection.execute('UPDATE worlds SET state=? WHERE id=?', (model.model_dump_json(), model.world_id))
+            store.append_event(connection, model.world_id, source)
+            connection.execute('INSERT INTO resource_needs VALUES (?, ?, ?)', (model.world_id, org.id,
+                json.dumps({'org_id': org.id, 'resource': 'herb', 'quantity': 1, 'status': 'open',
+                            'source_event_ids': [source.id]})))
+            context = build_context(connection, model, npc.id)
+            candidate = next(c for c in context.identity['action_candidates'] if c['action'] == 'TRANSFER')
+            assert candidate['target_id'] == org.id and candidate['params'] == {'item_id': item.id}
+            assert not any(c['action'] == 'TRANSFER' for c in
+                           build_context(connection, model, rep.id).identity['action_candidates'])

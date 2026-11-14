@@ -55,10 +55,10 @@ class DirectorModel:
             '如果无法复制准确的 ID 或满足任何前提，省略该建议。摘要有内容时必须附 source_event_ids。'
             '避免反复提出已处理的建议，考虑此前执行结果。只输出符合以下 JSON Schema 的 JSON：'
         )
-        payload = context.model_dump(mode='json')
-        payload['state']['tasks'] = [task for task in payload['state']['tasks']
-                                     if task['status'] in ('pending', 'running')]
-        payload['history_scope'] += ' State lists active tasks; use event history for completed outcomes.'
+        payload = context.model_dump(mode='json', exclude={'state': {'items', 'tasks'}})
+        payload['state']['tasks'] = [task.model_dump(mode='json') for task in context.state.tasks
+                                     if task.status in ('pending', 'running')]
+        payload['history_scope'] += ' State lists active tasks. Use events for equipment and completed outcomes.'
         return await self.complete(instructions, json.dumps(payload, ensure_ascii=False), DirectorDecision)
 
     async def write_chapter(self, evidence, names):
