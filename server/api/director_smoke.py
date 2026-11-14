@@ -11,6 +11,11 @@ def main():
                               'player_name': 'Director verification'})['data']['state']
     path = '/v1/worlds/' + state['world_id']
     player, target = state['actors'][:2]
+    moved = call(path + '/commands', {'request_id': uuid4().hex,
+        'expected_world_version': state['world_version'], 'kind': 'CHECKPOINT', 'payload': {
+        'region_id': player['region_id'], 'positions': [{'actor_id': player['id'], 'tile': target['tile']}]}})
+    state = moved['data']['state']
+    player = state['actors'][0]
     hit = call(path + '/commands', {'request_id': uuid4().hex,
         'expected_world_version': state['world_version'], 'kind': 'HIT', 'payload': {
         'attack_id': uuid4().hex, 'attacker_id': player['id'], 'target_id': target['id'],

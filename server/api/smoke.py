@@ -37,7 +37,7 @@ def main():
     assert len(events) == 1
     print(json.dumps({"result": "PASS", "mode": health["mode"], "world_id": state["world_id"],
                       "world_version": saved["world_version"], "event_count": len(events),
-                      "state_url": "http://127.0.0.1:8765" + path + "/state"}, ensure_ascii=False, indent=2))
+                      "state_url": BASE_URL + path + "/state"}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
