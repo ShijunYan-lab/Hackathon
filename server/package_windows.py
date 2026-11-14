@@ -17,7 +17,7 @@ def main():
     # Only code/config sources. No dotenv, database, logs, private prompts or environment folders.
     for folder in ('server', 'shared'):
         for path in sorted((root / folder).rglob('*')):
-            if path.is_file() and path.suffix in ('.py', '.json') and '__pycache__' not in path.parts:
+            if path.is_file() and path.suffix in ('.py', '.json', '.html', '.css', '.js') and '__pycache__' not in path.parts:
                 command.extend(['--add-data', str(path) + ';' + str(path.relative_to(root).parent)])
     command.append(str(root / 'server/launch.py'))
     subprocess.run(command, cwd=root, check=True)

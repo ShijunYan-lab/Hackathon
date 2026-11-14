@@ -12,7 +12,7 @@ def main():
     files = [root / 'requirements.txt', root / 'requirements-build.txt']
     for folder in ('server', 'shared'):
         files.extend(path for path in (root / folder).rglob('*') if path.is_file()
-                     and path.suffix in ('.py', '.json') and '__pycache__' not in path.parts)
+                     and path.suffix in ('.py', '.json', '.html', '.css', '.js') and '__pycache__' not in path.parts)
     files.extend(root / 'docs' / name for name in ('BACKEND_QUICKSTART.md', 'COMBAT_API.md',
         'WORLD_ACTIONS_CONTRACT.md', 'EVALUATION_BACKEND.md', 'WORLD_ECONOMY.md', 'C_BACKEND_HANDOFF.md'))
     files.append(root / 'team/C_WORLD/STATUS.md')

@@ -88,3 +88,10 @@ POST /v1/saves/{save_id}/load，发送新的 request_id，返回 new_world_id、
 完整运输/学习/回退见 EVALUATION_BACKEND.md；交易、组织、制造与迁入见 WORLD_ECONOMY.md。组装清单和 Windows 构建说明见 C_BACKEND_HANDOFF.md。
 
 本机目标环境启动：& './runtime/venv311/Scripts/python.exe' -m server.launch。额外验证：python -m server.api.evaluation_smoke（明确使用合成客户端报告）。Windows 构建先安装 requirements-build.txt，再运行 python -m server.package_windows。交接源码包运行 python -m server.build_backend。
+
+
+## 步骤 16：网页演示
+
+打开 http://127.0.0.1:8765/demo/。先点“创建世界”，选择人物并“靠近目标”，再体验对话、命中、物品与存档。点击地图空地可提交模拟玩家位置。评审区“建立评审会话→开始首轮”，在任务区提交模拟到达或失败，等待自动学习后点“同条件第二轮”，最后“恢复学习前状态”。成绩由真实后端算，动作输入为模拟报告。
+
+当前页面资源和后端测试已通过；本聊天浏览器控制不可用，尚未完成浏览器点击与视觉验收。四地点坐标为示意，正式 Godot 联调在步骤 15。网页随源码服务启动；此前步骤 14 的 EXE 包不含新网页，重新运行 package_windows 可打入网页资源。

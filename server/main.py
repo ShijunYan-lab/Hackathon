@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
 from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest, SaveRequest, LoadRequest
@@ -229,6 +230,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
         return app.state.store.agent_debug(world_id, npc_id)
 
+    app.mount('/demo', StaticFiles(directory=ROOT / 'server/api/demo', html=True), name='demo')
     return app
 
 
