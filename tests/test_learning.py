@@ -1,4 +1,11 @@
+from collections import Counter
+from copy import deepcopy
+
+import pytest
+
 from server.agents.sandbox import BLocalSandbox
+from server.agents.transport_learning import choose_transport, learn_transport
+from shared.evaluation_protocol import LearningProfile, RunMetrics, TransportContext, TransportOutcome
 
 
 def test_online_learning_changes_executed_action_only():
@@ -78,3 +85,74 @@ def test_autonomous_wander_gather_and_resource_refresh():
     assert all(m.npc_id==b.id for m in b.memories)
     assert any(k.startswith('wander|') for k in a.q)
     assert a.version > 0 or b.version > 0
+
+
+def test_opening_world_has_five_per_scene_and_is_seeded():
+    sandbox = BLocalSandbox(20261113, populate=True)
+    assert Counter(npc.location for npc in sandbox.npcs.values()) == {
+        "east_village": 5, "west_village": 5, "forest": 5, "ruins": 5,
+    }
+    assert sandbox.npcs == BLocalSandbox(20261113, populate=True).npcs
+    assert sandbox.npcs != BLocalSandbox(20261114, populate=True).npcs
+    assert len({npc.personality for npc in sandbox.npcs.values()}) > 1
+    events = {event["id"]: event for event in sandbox.events}
+    for npc in sandbox.npcs.values():
+        assert len(npc.memories) == 1
+        memory = npc.memories[0]
+        assert memory.npc_id == npc.id
+        assert events[memory.source_event_ids[0]]["npc_id"] == npc.id
+
+
+@pytest.mark.parametrize("goal", ["woodcut", "mine", "trade", "explore"])
+def test_repeat_restores_snapshot_with_preexisting_simulation(goal):
+    sandbox = BLocalSandbox(20261113, populate=True)
+    npc = sandbox.npcs["npc_local_001"]
+    sandbox.tick = 7
+    sandbox.resources["forest"] = 0
+    sandbox.choose(npc, goal)
+    original = deepcopy(sandbox.npcs)
+    market = sandbox.market_gold.copy()
+    random_state = sandbox.rng.getstate()
+    first = sandbox.run(npc.id, goal)
+    sandbox.learn()
+    sandbox.resources["forest"] = 3
+    second = sandbox.run(npc.id, goal, second=True)
+    assert second.context == first.context
+    if goal == "woodcut":
+        assert first.resources == second.resources == 0
+        assert not first.success and not second.success
+    audit_count = len(sandbox.events)
+    restored = sandbox.rollback()
+    assert restored.version == 0
+    assert sandbox.npcs == original
+    assert sandbox.resources["forest"] == 0
+    assert sandbox.market_gold == market
+    assert sandbox.tick == 7
+    assert sandbox.rng.getstate() == random_state
+    assert len(sandbox.events) == audit_count
+    with pytest.raises(RuntimeError):
+        sandbox.run(npc.id, goal, second=True)
+
+
+def test_transport_uses_actual_outcome_and_restores_old_choice():
+    profile = LearningProfile(profile_id="p", learner_id="npc", version=0, context_key="delivery",
+                              alpha=.8, values={"direct": .6, "escort": .5}, retrieval_epoch=0)
+    context = TransportContext(learner_id="npc", context_key="delivery",
+                               available_strategies=["direct", "escort"], own_gold=8,
+                               escort_cost=2, guard_id="guard", known_event_ids=["loss"])
+    assert choose_transport(context, profile).strategy == "direct"
+    metrics = RunMetrics(cargo_initial=10, cargo_delivered=2, gold_initial=8, gold_spent=0,
+                         duration_ms=1000, merchant_survived=True, task_success=False,
+                         delivered_ratio=.2, reward=.2)
+    outcome = TransportOutcome(run_id="first", learner_id="npc", context_key="delivery",
+                               profile_version=0, strategy="direct", metrics=metrics,
+                               source_event_ids=["loss"])
+    update = learn_transport(profile, outcome)
+    assert update.updated_profile.values == pytest.approx({"direct": .28, "escort": .5})
+    assert list(update.changed_values) == ["direct"]
+    assert update.updated_profile.memories[0].source_event_ids == ["loss"]
+    assert choose_transport(context, update.updated_profile).strategy == "escort"
+    assert choose_transport(context, profile).evidence_memory_ids == []
+    assert choose_transport(context, profile).strategy == "direct"
+    with pytest.raises(ValueError):
+        learn_transport(update.updated_profile, outcome)

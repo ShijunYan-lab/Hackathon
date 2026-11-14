@@ -1,34 +1,32 @@
-# B｜NPC 对话、记忆与自动学习 · 工作记录（本地补丁草稿）
+# B｜NPC 自主认知与学习交付
 
-分支：`feature/b-agents`（**未执行 Git push**）
-本次完成：**独立终端测试沙盒**，不是生产 Agent 服务。
+分支 `feature/b-agents`，基线提交 `4409d16`。本次代码在工作区，未提交或推送。
 
-## 已完成并执行测试
+## 已交付
 
-- [x] 新增 `server/agents/sandbox.py`：独立 NPC 身份、住处、武器、私有记忆、转述/亲见标签、事件 ID 与策略 Q 版本；两个村庄/森林/河流/矿山/遗迹的简单测试数据。
-- [x] 新增 `server/agents/cli.py`：在仓库根目录启动互动终端，`spawn/npcs/world/step/ask/asklive/talk/run/learn/rerun/rollback/profile/memory/events`。
-- [x] 新增 `server/agents/provider.py`：通过 **本地 .env** 可配置 OpenAI 兼容 Chat Completions 的 `asklive`；仅在成功真实调用时才显示 live。
-- [x] 新增 `tests/test_agents.py`、`tests/test_learning.py`，覆盖记忆隔离、谣言来源、通用角色、策略更新、回退、单次反馈不可重复学习、相似任务跨村复用、自治游走/资源刷新。
-- [x] 编写 `server/agents/B_SANDBOX_README.md`，明确本地规则模拟不等于 C 权威结算和正式评测。
+- `server/agents/cli.py`、`sandbox.py`：固定种子四场景 20 人开局，目标驱动移动、采集、返家、转述、有限资源、交战和交易测试替身；四类可执行任务与反馈学习。
+- `provider.py`、`errors.py`：真实中文问答、异步 HTTP 调用、超时和并发限额、安全错误文本。
+- `service.py`、`memory.py`、`server/prompts/npc_decision.txt`：生产 Python 入口、角色私有检索、来源和意图校验、修复一次、安全 WAIT 降级。
+- `transport_learning.py`：基于共享 DTO 的纯函数 `choose_transport`、`learn_transport`。保留 `direct/escort`、原奖励、版本和来源。以结果版本和来源 run 校验重复学习。
+- `tests/test_agents.py`、`tests/test_learning.py`：覆盖关键边界和复跑。
 
-## 实测结果
+## Windows / hks 实测
 
-- 运行 `python -m pytest tests/test_agents.py tests/test_learning.py -q`（结果以用户本地实际复测为准）。
-- `python -m server.agents.cli --seed 20261113` 可交互模拟；首跑绕遗迹、收到失败反馈、学习后改选河边绕行、可回退。
-- 运行 `python -m pytest tests -q`，**42 项通过**；`python -m tools.check_contracts` 和 `python -m tools.check_evaluation_contracts` 均通过格式校验（2026-11-13，本地容器）。
-- **未测试** Windows 11、Godot 4.5.2、真实第三方模型 API、C 的真实服务或正式评审。
+- 当前本机使用 DeepSeek 官方接口的 `deepseek-flash`。按终端手册复测了开局回忆、受挑衅回应、回忆上一句玩家发言、石碑消息的转述归因，以及切换到西村角色后仅显示该角色的背景记忆。开局 20 名 NPC 各有带事件来源的背景记忆。回退恢复任务开始时可见的背景及对话记录。
 
-## 未完成 / 生产主线任务
+- 固定 seed `20261113`，默认第 1 名 NPC 砍树：首轮走遗迹，取得 2 份木材，损血 17，奖励 0.260。已执行策略 Q 由 0.650 降到 0.338，v0 → v1。复跑走河边，取得 2 份木材，损血 0，奖励 0.870；`rollback` 恢复 v0 并保留审计。以上均为本地模拟。
+- 切换 DeepSeek 前，使用赞助网关的 `gpt-6.1-sol` 验证手工 AgentContext 的 `dialogue`、`plan`（MOVE）、`reflect`（记忆提议）。当前 DeepSeek 的实机验证覆盖终端自由对话。
+- B 定向测试 25 通过，全仓测试 59 通过（1 条 Starlette 依赖弃用警告）。基础及评审协议校验通过。20 名 NPC 的 `step 10` 产生 411 条本地事件，耗时约 3.4 ms，模型请求 0。
+- 未实跑 C 的 HTTP 服务、Godot 或正式运输评审。
 
-- [ ] `server/agents/service.py`：符合 `shared/protocol.py` 的 `dialogue/plan/reflect` 三个函数及结构化 JSON 校验。
-- [ ] `server/agents/memory.py`：从 C 的 `AgentContext` 检索、反思与信念修正；可保存的记忆提议。
-- [ ] 原固定运输评审 `server/agents/transport_learning.py`：基于现有 `shared/evaluation_protocol.py` 做 direct/escort 两动作的纯函数学习，保持旧合同。
-- [ ] 真实 `asklive` API 联网验证、失败降级与性能记录；不可把本地 offline 模拟当作 live。
-- [ ] 与 C/A/D 实际联调、真实动作事件、伤害和资源来源。
+## C 接入
 
-## 对 C/D 的公共变更申请（尚未修改 shared）
+直接从 `server.agents.service` 导入 `dialogue(context, text)`、`plan(context, trigger_event_ids)`、`reflect(context, outcome_event_ids)`。三者接收 `AgentContext`、返回 `AgentDecision`。捕获 `server.agents.errors.AgentCallFailed` 后调用 `safe_fallback(context)`，由 HTTP 层记为 fallback。过期决策和事件可见性由 C 核验。示例可参照 `tests/test_agents.py`：
 
-- C + D：区域从原三场景扩展为两个村庄（小卖铺、铁匠铺、集市、酒馆、房屋）+道路+森林+河流+矿山零散资源点+遗迹；请确认动态 ID/地图和共享协议。
-- A + C：武器扩展为战锤、弓箭、弩箭、短剑、法杖；请确认基础形态、攻击范围、弹药/法力、伤害结算实现范围。
-- C：World Director（世界大 Agent）拥有全局状态和事件；B 只读取该 NPC 合法可知的信息、返回行动/学习提议。若允许跨场景通用 Contextual Bandit，需要新的通用学习数据契约；在确认前 B 不改 `shared/`。
-- C：评审原 transport_v1 不应被本沙盒的 shortcut/detour 替换。新增玩法与固定双轮验收平行进行。
+- 已知实体 `{"id":"mine","name":"矿山"}` 且 MOVE 合法时，NPC 可返回 `{"intent":{"action":"MOVE","target_id":"mine"}}`。
+- 未知目标、未授权参数、私有证据或坏 JSON 连续两次失败时抛 `AgentCallFailed`。WAIT 合法时 fallback 提议 WAIT；死亡角色返回无行动。
+- 记忆使用 `id/npc_id/statement/source_type/source_event_ids/confidence/status`。可附 `policy_version/entity_ids`。输入按旧到新；C 负责持久化、来源核验与已被修正记忆的状态更新。转述事件请附可见的 `facts.source_type=report` 和根来源 `facts.source_event_ids`。
+- 通用学习的兼容约定待 C 确认：在 `identity.action_candidates` 提供 `action/target_id/params`，可附 `strategy_group/policy_key`，以便规划在同目标的合法候选中对照 Q。给 reflect 的可信 `agent_action_outcome` 事件需绑定本 NPC，facts 提供 `policy_key/reward/policy_version`。C 负责计算奖励、验证事件与版本、按结果事件幂等持久化。涉及多个结果时请逐个调用。共享 DTO 可后续明确上述字段和结构化记忆修订关系。
+- 正式运输仅按 `transport_learning` 更新该 profile。C 执行两轮与回退并事务核验结果；同一个运输 profile 不应再通过普通 reflect 更新。
+
+A/C/D 待确认生产四场景及区域 ID、20 人开局上限、五类武器的实际执行、对象与权限以及最终地图。B 沙盒动作和资源为测试数据。
