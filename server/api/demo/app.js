@@ -18,7 +18,7 @@ async function advanceWorld(manual){
  const d=await write(need()+'/advance',{expected_world_version:state.world_version,
   reason:trigger?'major_event':manual?'debug_step':'idle_timer',trigger_event_ids:trigger?[trigger]:[]});
  majorTrigger=null;
- nextAdvance=Date.now()+20000;
+ nextAdvance=Date.now()+(d.director?.retry_next_turn?4000:20000);
  adopt(d.state);
 }
 $('advance').onclick=()=>action(()=>advanceWorld(true));
@@ -42,7 +42,7 @@ for(let kind of ['first','second'])$(kind).onclick=()=>action(async()=>{if(!sess
 $('rollback').onclick=()=>action(async()=>{if(!session)throw Error('请先建立评审');let d=await write('/v1/evaluations/'+session.evaluation_id+'/rollback',{expected_evaluation_version:session.evaluation_version});session=d.session;adopt(d.state)});
 $('tasks').onclick=e=>{let b=e.target.closest('[data-task]');if(!b)return;action(async()=>{let t=state.tasks.find(t=>t.id===b.dataset.task);await cmd('TASK_REPORT',{task_id:t.id,actor_id:t.actor_id,status:b.dataset.status,region_id:t.target_region_id,tile:t.target_tile,...(b.dataset.status==='failed'?{failure_code:'DEMO_SYNTHETIC_FAILURE'}:{})})})};
 $('retry').onclick=()=>action(async()=>{if(!pending)return;let d;try{d=await api(pending.path,pending.body)}catch(e){if(e.definite)pending=null;throw e}pending=null;if(d.session)session=d.session;
- if(d.director){majorTrigger=null;nextAdvance=Date.now()+20000;}
+ if(d.director){majorTrigger=null;nextAdvance=Date.now()+(d.director.retry_next_turn?4000:20000);}
  const hit=d.events?.find(e=>e.type==='actor_died')||d.events?.find(e=>e.type==='hit_applied');
  if(hit){majorTrigger=hit.id;nextAdvance=Date.now()+2000;}
  adopt(d.state)});
@@ -99,7 +99,7 @@ const directorLabels={
  PROPOSAL_DISABLED:'该动作当前不可用',PROPOSAL_FORMAT_INVALID:'单条建议格式不符合约定',
  PROPOSALS_FORMAT_INVALID:'建议列表格式不符合约定',RESOURCE_LIMIT:'超过资源配置上限',
  POPULATION_LIMIT:'已达到人口上限',MIGRATION_TARGET_INVALID:'迁入必须生成新人物',
- PROPOSAL_BUDGET_EXCEEDED:'超过本回合建议数量上限',MODEL_TIMEOUT:'模型响应超时'
+ PROPOSAL_BUDGET_EXCEEDED:'超过本回合建议数量上限',MODEL_TIMEOUT:'模型响应超时',REQUEST_BUDGET_EXHAUSTED:'等待模型调用额度超时'
 };
 const directorLabel=code=>directorLabels[code]||code;
 async function refreshDirector(path){
@@ -108,7 +108,7 @@ async function refreshDirector(path){
  if(!health.debug_views){$('director').textContent='全局审计未开放。导演已配置：'+health.director_configured;return}
  const data=await api(path+'/director/debug');
  const assessed=data.runs.filter(r=>r.result.status!=='skipped').slice(-5).reverse();
- $('director').innerHTML=`<p>模型：${esc(health.director_model||'未配置')} · 以下为开发者全局视图，不会传给所有 NPC。</p>`+assessed.map(r=>`<div class="entry"><strong>回合 ${r.tick} · ${esc(r.result.mode)} · ${esc(directorLabel(r.result.reason_code))}</strong><p>${esc(r.result.decision?.summary||(r.result.mode==='live'?'本次没有可展示的摘要。':'本回合没有执行模型建议。'))}</p>${r.result.issues?.length?`<p class="muted">${esc(r.result.issues.map(directorLabel).join('；'))}</p>`:''}${(r.result.decision?.proposals||[]).map((p,i)=>`<p>${esc(p.kind)}：${esc(p.reason_summary)}<br>执行：${r.executions[i]?.accepted?'已接受':'未接受'} · ${esc(r.executions[i]?.event_id||'无')}<br>依据：${esc(p.source_event_ids.join(', '))}</p>`).join('')}<small>摘要来源：${esc(r.result.decision?.source_event_ids.join(', ')||'无')}</small></div>`).join('');
+ $('director').innerHTML=`<p>模型：${esc(health.director_model||'未配置')} · 以下为开发者全局视图，不会传给所有 NPC。</p>`+assessed.map(r=>`<div class="entry"><strong>回合 ${r.tick} · ${esc(r.result.mode)} · ${esc(directorLabel(r.result.reason_code))}</strong>${r.retry_next_turn?'<p class="muted">已保留事件，下一个回合会提前重试一次。</p>':''}<p>${esc(r.result.decision?.summary||(r.result.mode==='live'?'本次没有可展示的摘要。':'本回合没有执行模型建议。'))}</p>${r.result.issues?.length?`<p class="muted">${esc(r.result.issues.map(directorLabel).join('；'))}</p>`:''}${(r.result.decision?.proposals||[]).map((p,i)=>`<p>${esc(p.kind)}：${esc(p.reason_summary)}<br>执行：${r.executions[i]?.accepted?'已接受':'未接受'} · ${esc(r.executions[i]?.event_id||'无')}<br>依据：${esc(p.source_event_ids.join(', '))}</p>`).join('')}<small>摘要来源：${esc(r.result.decision?.source_event_ids.join(', ')||'无')}</small></div>`).join('');
  const statuses={queued:'等待 NPC 规划',consumed:'NPC 已返回规划',cancelled:'已取消'};
  if(data.focus.length)$('director').innerHTML+=data.focus.slice(0,5).map(f=>`<p>${esc(statuses[f.status]||f.status)} · ${esc(state.actors.find(a=>a.id===f.npc_id)?.name||f.npc_id)}</p>`).join('');
  if(!assessed.length)$('director').innerHTML+='<p>还未到评估回合，请继续推进。</p>';

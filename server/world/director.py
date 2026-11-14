@@ -23,7 +23,7 @@ class MapLocation(DTO):
 class DirectorConfig(DTO):
     enabled: bool = True
     interval_ticks: int = Field(default=3, ge=1)
-    timeout_s: float = Field(default=8, gt=0, le=8)
+    timeout_s: float = Field(default=9, gt=0, le=9)
     npc_alive_limit: int = Field(default=10, ge=1)
     max_proposals: int = Field(default=2, ge=1, le=4)
     locations: list[MapLocation] = Field(default_factory=list)

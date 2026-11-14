@@ -77,3 +77,5 @@ GET /v1/worlds/{id}/story/chapters 提供 title、narrative、open_question、so
 回合是 NPC 规划和导演评估的后台时间点。客户端在游戏运行时串行自动调用 advance，空闲用 idle_timer，重要事件用 major_event 加本世界事件 ID。Demo 每 20 秒空闲自动推进，报告命中后约 2 秒可提前触发；对话编辑、请求未确认、页面隐藏、评审和切换时暂停。Godot 按 INTEGRATION 的单定时器约定接入，并在战斗动画期间暂停。游戏画面和移动使用自己的帧率。
 
 导演响应的 issues 列出被过滤内容的原因。PARTIAL_DECISION 表示有有效部分保留。NO_ACTION_PROPOSED 是模型完成评估后没有新建议。有效建议仍由事务内规则独立决定是否执行，accepted_proposals 才是被世界接受的数量。
+
+导演暂时性超时或连接错误时，advance 返回 director.retry_next_turn=true。本回合其他已验证结果仍可提交；正常推进下一回合即触发原证据重试，不需要重发旧请求或补传事件。每次评估最多一次提前重试，之后恢复配置的评估间隔。

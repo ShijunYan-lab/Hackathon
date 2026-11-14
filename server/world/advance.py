@@ -14,6 +14,9 @@ from server.world.director_execution import execute as execute_director
 from server.world.director_context import build as build_director_context
 
 
+RETRYABLE_DIRECTOR_CODES = {"MODEL_TIMEOUT", "MODEL_CONNECTION_FAILED", "REQUEST_BUDGET_EXHAUSTED"}
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS world_runtime (
     world_id TEXT PRIMARY KEY, config TEXT NOT NULL, last_director_tick INTEGER NOT NULL,
@@ -83,7 +86,19 @@ class WorldTurns:
             config = DirectorConfig.model_validate_json(runtime["config"])
             state.tick += 1
             major_event = body.reason == "major_event" and bool(triggers)
-            due = config.enabled and (major_event or state.tick - runtime["last_director_tick"] >= config.interval_ticks)
+            retry_record = None
+            if state.tick == runtime["last_director_tick"] + 1:
+                row = connection.execute("SELECT body FROM director_runs WHERE world_id=? ORDER BY rowid DESC LIMIT 1",
+                                         (world_id,)).fetchone()
+                if row:
+                    retry_record = json.loads(row[0])
+            retrying = bool(retry_record and retry_record["tick"] == runtime["last_director_tick"]
+                            and retry_record.get("retry_next_turn"))
+            if retrying:
+                triggers.update(retry_record["trigger_event_ids"])
+            due = config.enabled and (major_event or retrying or
+                                      state.tick - runtime["last_director_tick"] >= config.interval_ticks)
+            triggers_for_director = triggers
             director_context = build_director_context(connection, state, config, triggers) if due and self.provider else None
             evidence = chronicle.candidates(connection, state) if self.chapter_writer and config.enabled else []
             entities = {entity for event in evidence for entity in (event.actor_id, event.target_id) if entity}
@@ -121,7 +136,7 @@ class WorldTurns:
                 async with self.agents.gateway.semaphore:
                     return await director.assess(director_context,
                         last_assessed_tick=runtime["last_director_tick"],
-                        major_event=major_event)
+                        major_event=major_event or retrying)
             async def assess_with_budget():
                 try:
                     return await asyncio.wait_for(assess(), timeout=10)
@@ -140,7 +155,9 @@ class WorldTurns:
                 except Exception:
                     return None
 
-            (decision, mode), result, draft = await asyncio.gather(plan(), assess_with_budget(), write_chapter())
+            # Give the due evaluation first access to the shared model slots.
+            result, (decision, mode), draft = await asyncio.gather(assess_with_budget(), plan(), write_chapter())
+            retry_next = result.reason_code in RETRYABLE_DIRECTOR_CODES and not retrying
             if result.status != "skipped":
                 self.last_mode = result.mode
             with self.store.connection(write=True) as connection:
@@ -208,7 +225,8 @@ class WorldTurns:
                 if result.status != "skipped":
                     connection.execute("UPDATE world_runtime SET last_director_tick=? WHERE world_id=?",
                                        (state.tick, world_id))
-                    record = {"tick": state.tick, "result": result.model_dump(mode="json"), "executions": applied}
+                    record = {"tick": state.tick, "result": result.model_dump(mode="json"), "executions": applied,
+                              "retry_next_turn": retry_next, "trigger_event_ids": sorted(triggers_for_director)}
                     connection.execute("INSERT INTO director_runs VALUES (?, ?, ?)",
                                        (world_id, "director_" + uuid4().hex, json.dumps(record, ensure_ascii=False)))
                 emitted.append(event(state, "world_advanced", seq + len(emitted), None, None,
@@ -225,7 +243,8 @@ class WorldTurns:
                     "tasks": [task.model_dump(mode="json") for task in state.tasks if task.id in task_ids],
                     "events": [value.model_dump(mode="json") for value in emitted if state.player_id in value.witness_ids],
                     "director": {"mode": result.mode, "status": result.status, "reason_code": result.reason_code, "issues": result.issues,
-                                 "accepted_proposals": sum(entry["accepted"] for entry in applied)},
+                                 "accepted_proposals": sum(entry["accepted"] for entry in applied),
+                                 "retry_next_turn": retry_next},
                     "state": state.model_dump(mode="json")})
                 self.store.remember(connection, scope, body, output)
                 return output

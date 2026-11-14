@@ -240,3 +240,28 @@ def test_player_chapters_recall_old_evidence_and_survive_branch(tmp_path):
         branch = client.post('/v1/saves/' + saved['save_id'] + '/load',
                              json={'request_id': uuid4().hex}).json()['data']['state']
         assert client.get('/v1/worlds/' + branch['world_id'] + '/story/chapters').json()['data']['chapters'] == [chapter]
+
+def test_director_timeout_retries_original_evidence_once(tmp_path):
+    from server.world.model_gateway import ModelUnavailable
+
+    calls = []
+    async def direct(context):
+        calls.append({event.id for event in context.events})
+        raise ModelUnavailable('MODEL_TIMEOUT')
+
+    app = create_app(tmp_path / 'retry.sqlite3', director_provider=direct,
+                     director_config=DirectorConfig(interval_ticks=5))
+    with TestClient(app) as client:
+        path, state = new(client)
+        source = client.get(path + '/events').json()['data']['events'][0]['id']
+        body = request(state, reason='major_event', trigger_event_ids=[source])
+        first = client.post(path + '/advance', json=body).json()
+        assert first['data']['director']['retry_next_turn']
+        assert client.post(path + '/advance', json=body).json() == first
+        second = client.post(path + '/advance', json=request(first['data']['state'])).json()['data']
+        assert second['director']['reason_code'] == 'MODEL_TIMEOUT'
+        assert not second['director']['retry_next_turn']
+        assert len(calls) == 2 and source in calls[1]
+        third = client.post(path + '/advance', json=request(second['state'])).json()['data']
+        assert third['director']['reason_code'] == 'NOT_DUE'
+        assert len(calls) == 2
