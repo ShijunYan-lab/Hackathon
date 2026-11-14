@@ -2,6 +2,7 @@
 import asyncio
 import importlib
 import json
+import inspect
 from pathlib import Path
 from uuid import uuid4
 
@@ -30,12 +31,14 @@ def implementation_hash():
 
 
 class Evaluations:
-    def __init__(self, store, snapshots, turns, scenario, region, choose_provider=None, learn_provider=None):
+    def __init__(self, store, snapshots, turns, scenario, region, choose_provider=None, learn_provider=None,
+                 execution_identity=None):
         self.store, self.snapshots, self.turns = store, snapshots, turns
         self.scenario, self.region = scenario, region
         self.choose_provider = choose_provider
         self.learn_provider = learn_provider
         self.code_hash = implementation_hash()
+        self.execution_identity = execution_identity or {'model': 'rule-fallback', 'prompt_hash': 'none'}
         with store.connection() as connection:
             connection.executescript(SCHEMA)
         store.command_guard = self.guard
@@ -66,6 +69,8 @@ class Evaluations:
         if session.run_ids:
             run = json.loads(connection.execute('SELECT body FROM evaluation_runs WHERE id=?',
                 (session.run_ids[-1],)).fetchone()[0])['view']
+            if run['world_id'] != session.active_world_id:
+                run = None
         return Envelope[dict](request_id=request_id, ok=True, world_id=session.active_world_id,
             world_version=state.world_version if state else None,
             data={'session': session.model_dump(mode='json'), 'run': run,
@@ -124,6 +129,7 @@ class Evaluations:
             data = {'session': session.model_dump(mode='json'), 'config': config,
                 'baseline_profile': profile.model_dump(mode='json'), 'profile': profile.model_dump(mode='json'),
                 'guard_id': guard.id, 'threat_id': threat_id, 'code_hash': self.code_hash,
+                'adapter_hash': self.adapter_hash(),
                 'learning_update': None, 'notes': ['动作报告来自客户端；真实 Godot 验收另行记录。']}
             self.persist(connection, data)
             result = self.output(connection, data, body.request_id)
@@ -150,6 +156,18 @@ class Evaluations:
         return TransportChoice(strategy=strategy, profile_version=profile.version,
             evidence_memory_ids=[memory.id for memory in profile.memories],
             reason_summary='规则降级：从合法策略中选择当前价值最高者。'), 'fallback'
+
+    def adapter_hash(self):
+        providers = []
+        for provider in (self.choose_provider, self.learn_provider):
+            if provider is None:
+                providers.append('auto-module-or-rule-fallback')
+            else:
+                try:
+                    providers.append(inspect.getsource(provider))
+                except (OSError, TypeError):
+                    providers.append(provider.__module__ + '.' + provider.__qualname__)
+        return digest({'providers': providers, 'identity': self.execution_identity})
 
     @staticmethod
     def check_phase(data, body):
@@ -189,7 +207,7 @@ class Evaluations:
                                              (scope, body.request_id)).fetchone()
                 if not active or active[0] != token:
                     raise WorldError('REQUEST_EXPIRED', '选策请求已过期。', 409)
-                if data['code_hash'] != self.code_hash:
+                if data['code_hash'] != self.code_hash or data.get('adapter_hash') != self.adapter_hash():
                     raise WorldError('SNAPSHOT_MISMATCH', '代码环境已改变，需重新创建评审会话。', 409)
                 if (choice.profile_version != profile.version or choice.strategy not in available or
                     not set(choice.evidence_memory_ids) <= {memory.id for memory in profile.memories}):
@@ -230,7 +248,8 @@ class Evaluations:
                     strategy=choice.strategy).model_dump(mode='json'), 'evaluation_id': evaluation_id,
                     'started_at': self.store.clock(), 'start_seq': seq, 'cargo_remaining': config['cargo_initial'],
                     'gold_spent': spent, 'guard_gold': spent, 'task_id': task.id, 'choice': choice.model_dump(mode='json'),
-                    'scenario_hash': data['session']['scenario_hash'], 'code_hash': self.code_hash}
+                    'scenario_hash': data['session']['scenario_hash'], 'code_hash': self.code_hash,
+                    'adapter_hash': self.adapter_hash()}
                 self.persist_run(connection, run)
                 session = data['session']
                 session['evaluation_version'] += 1
@@ -403,8 +422,69 @@ class Evaluations:
     def report(self, evaluation_id):
         with self.store.connection() as connection:
             data = self.row(connection, evaluation_id)
-            runs = [json.loads(row[0])['view'] for row in connection.execute(
+            records = [json.loads(row[0]) for row in connection.execute(
                 'SELECT body FROM evaluation_runs WHERE evaluation_id=? ORDER BY rowid', (evaluation_id,))]
+            runs = [record['view'] for record in records]
+            pair = {record['view']['kind']: record for record in records
+                    if record['view']['kind'] in ('first', 'second') and record['view']['measured']}
+            comparable, improvement = False, 'not_measured'
+            notes = list(data['notes'])
+            if set(pair) == {'first', 'second'}:
+                first, second = pair['first'], pair['second']
+                comparable = all(first.get(key) == second.get(key) for key in
+                                 ('scenario_hash', 'code_hash', 'adapter_hash'))
+                comparable = comparable and first['view']['mode'] == second['view']['mode']
+                if comparable:
+                    delta = second['view']['metrics']['delivered_ratio'] - first['view']['metrics']['delivered_ratio']
+                    improvement = 'improved' if delta > 1e-9 else 'worse' if delta < -1e-9 else 'unchanged'
+                else:
+                    improvement = 'incomparable'
+                    notes.append('两轮场景、代码、适配器或实际降级模式不同，不能比较学习收益。')
+            if data['session']['status'] in ('rolled_back', 'rollback_running'):
+                notes.append('当前已恢复 P0；learning_update 仅供审计，当前选策入口不检索该历史 V1。')
             return Envelope[dict](request_id='report', ok=True, data={'session': data['session'], 'runs': runs,
-                'learning_update': data['learning_update'], 'comparable': False, 'improvement': 'not_measured',
-                'notes': data['notes']}).model_dump(mode='json')
+                'learning_update': data['learning_update'], 'comparable': comparable, 'improvement': improvement,
+                'notes': notes}).model_dump(mode='json')
+
+    def rollback(self, evaluation_id, body):
+        scope = evaluation_id + '/rollback'
+        with self.store.connection(write=True) as connection:
+            cached = self.store.cached(connection, scope, body)
+            if cached is not None:
+                return cached
+            data = self.row(connection, evaluation_id)
+            session = data['session']
+            if session['evaluation_version'] != body.expected_evaluation_version:
+                raise WorldError('EVALUATION_VERSION_CONFLICT', '评审版本已改变，请刷新。', 409)
+            for row in connection.execute('SELECT body FROM evaluation_runs WHERE evaluation_id=?', (evaluation_id,)).fetchall():
+                run = json.loads(row[0])
+                if run['view']['status'] != 'running':
+                    continue
+                state = StateView.model_validate_json(self.store.world_row(connection, run['view']['world_id'])['state'])
+                seq = connection.execute('SELECT MAX(seq) FROM events WHERE world_id=?', (state.world_id,)).fetchone()[0] + 1
+                cancelled = event(state, 'evaluation_run_cancelled', seq, session['learner_id'], None,
+                    {'run_id': run['view']['run_id'], 'reason': 'ROLLBACK'}, [], [session['learner_id']])
+                events = [cancelled]
+                for task in state.tasks:
+                    if task.status in ('pending', 'running'):
+                        task.status = 'cancelled'
+                        events.append(event(state, 'task_cancelled', seq + len(events), task.actor_id, None,
+                            {'task_id': task.id, 'reason': 'ROLLBACK'}, [cancelled.id], [task.actor_id]))
+                for actor in state.actors:
+                    actor.task_id = None
+                    actor.behavior = 'idle' if actor.alive else 'dead'
+                state.world_version += 1
+                connection.execute('UPDATE worlds SET state=? WHERE id=?', (state.model_dump_json(), state.world_id))
+                for entry in events:
+                    self.store.append_event(connection, state.world_id, entry)
+                run['view']['status'] = 'cancelled'
+                self.persist_run(connection, run)
+            baseline = self.snapshots.branch(connection, session['snapshot_id'])
+            data['profile'] = json.loads(encode(data['baseline_profile']))
+            data['learning_token'], data['learning_lease_until'] = None, 0
+            session.update(status='rolled_back', active_world_id=baseline.world_id,
+                active_profile_version=data['profile']['version'], evaluation_version=session['evaluation_version'] + 1)
+            self.persist(connection, data)
+            result = self.output(connection, data, body.request_id)
+            self.store.remember(connection, scope, body, result)
+            return result

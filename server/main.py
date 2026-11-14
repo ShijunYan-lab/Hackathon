@@ -19,7 +19,7 @@ from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Env
 from server.storage.snapshots import Snapshots
 from server.evaluation.scenario import TransportScenario
 from server.evaluation.service import Evaluations
-from shared.evaluation_protocol import EvaluationCreateRequest, EvaluationRunRequest
+from shared.evaluation_protocol import EvaluationCreateRequest, EvaluationRunRequest, EvaluationRollbackRequest
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
 from server.world.combat import CombatRules
@@ -35,7 +35,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                combat_rules: CombatRules | None = None, clock=None,
                dialogue_provider=None, plan_provider=None, agent_timeout_s=8,
                director_provider=None, director_config=None, transport_scenario=None,
-               choose_provider=None, learn_provider=None) -> FastAPI:
+               choose_provider=None, learn_provider=None, evaluation_identity=None) -> FastAPI:
     if allow_debug is None:
         allow_debug = os.environ.get("ALLOW_DEBUG", "false").lower() == "true"
     @asynccontextmanager
@@ -58,7 +58,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         app.state.turns = WorldTurns(app.state.agents, config, director_provider)
         app.state.snapshots = Snapshots(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
-            transport_scenario or TransportScenario(), region, choose_provider, learn_provider)
+            transport_scenario or TransportScenario(), region, choose_provider, learn_provider, evaluation_identity)
         async def maintenance():
             while True:
                 app.state.evaluations.expire()
@@ -159,6 +159,19 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.get('/v1/evaluations/{evaluation_id}/report')
     def evaluation_report(evaluation_id: str):
         return app.state.evaluations.report(evaluation_id)
+
+    @app.get('/v1/evaluations/{evaluation_id}/profile')
+    def evaluation_profile(evaluation_id: str):
+        with app.state.store.connection() as connection:
+            data = app.state.evaluations.row(connection, evaluation_id)
+            return Envelope[dict](request_id='profile', ok=True, data={
+                'baseline_profile': data['baseline_profile'], 'active_profile': data['profile'],
+                'learning_mode': data.get('learning_mode', 'fallback'),
+                'code_hash': data['code_hash'], 'adapter_hash': data.get('adapter_hash')})
+
+    @app.post('/v1/evaluations/{evaluation_id}/rollback')
+    def evaluation_rollback(evaluation_id: str, body: EvaluationRollbackRequest):
+        return app.state.evaluations.rollback(evaluation_id, body)
 
     @app.post("/v1/worlds/{world_id}/dialogue")
     async def dialogue(world_id: str, body: DialogueRequest):
