@@ -1,2 +1,3 @@
--r requirements.txt
+# Windows backend builder, verified with Python 3.11.11.
 pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10

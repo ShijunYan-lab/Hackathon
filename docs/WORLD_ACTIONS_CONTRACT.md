@@ -20,7 +20,7 @@ PICKUP/EQUIP 使用 actor_id、item_id；GIVE 再提供 target_id。操作角色
 
 B 可实现 server/agents/service.py 的 dialogue/plan，或组装时用 create_app(dialogue_provider=..., plan_provider=...) 注入异步函数，签名沿用 INTEGRATION。C 提供本人库存、附近 6 格内的已知实体、近期事件和最多 12 条可检索记忆。单次模型调用含排队最多 8 秒，并发上限 2。调用在数据库事务外进行，回来后严格重验世界版本和生死。
 
-当前 allowed_actions 为 WAIT、MOVE、GATHER、TRANSFER、SHARE_INFO。
+步骤 07 时的 allowed_actions 为 WAIT、MOVE、GATHER、TRANSFER、SHARE_INFO；步骤 13 增加组织和制造动作，见 WORLD_ECONOMY.md。
 
 | 意图 | target_id | params | 结果 |
 | --- | --- | --- | --- |
@@ -52,7 +52,7 @@ POST /v1/worlds/{world_id}/advance 复用 AdvanceRequest，reason 为 idle_timer
 
 导演默认每 3 回合评估一次；major_event 带合法触发事件可提前评估。create_app(director_provider=async_callable) 注入 B 的适配器，其签名为 async def provider(context: DirectorContext) -> DirectorDecision。配置读取 server/world/director_config.json，可通过 DIRECTOR_CONFIG_PATH 替换，第一次推进时冻结到该世界，重启后继续使用。locations 由正式地图提供；目前为空，不编造两村庄、森林、遗迹坐标。
 
-当前只开放 FOLLOW_UP，执行目标为存活 NPC：产生有因果来源的 director_follow_up_queued，下一可用回合优先调用该 NPC 自身的 plan。重复排队、死亡目标以及组织/资源点目标会被执行校验拒绝，并留下 director_proposal_rejected。处理队列产生 director_follow_up_processed，含义仅为已尝试规划；实际任务仍须另行完成。死亡对象的排队记录取消并审计。RESOURCE_NEED/MIGRATION 执行器留至步骤 13，当前不加入 allowed_proposals。
+当前只开放 FOLLOW_UP，执行目标为存活 NPC：产生有因果来源的 director_follow_up_queued，下一可用回合优先调用该 NPC 自身的 plan。重复排队、死亡目标以及组织/资源点目标会被执行校验拒绝，并留下 director_proposal_rejected。处理队列产生 director_follow_up_processed，含义仅为已尝试规划；实际任务仍须另行完成。死亡对象的排队记录取消并审计。步骤 13 已加入 RESOURCE_NEED/MIGRATION 的受限执行器，详情和未启用的自动履约能力见 WORLD_ECONOMY.md。
 
 导演摘要以 interpretation 标识存入事件和世界记忆，建议、校验结果、执行事件、队列状态持久化。GET /v1/worlds/{world_id}/director/debug（需要 ALLOW_DEBUG=true）返回 runs 与 focus；公开回合事件只包含玩家目击内容。导演私有记录不会自动进入 NPC 记忆。
 

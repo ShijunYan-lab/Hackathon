@@ -3,7 +3,7 @@ import json
 import time
 from uuid import uuid4
 
-from server.api.smoke import call
+from server.api.smoke import BASE_URL, call
 
 
 def main():
@@ -43,7 +43,7 @@ def main():
     print(json.dumps({'ok': True, 'input_kind': 'synthetic_client_reports',
         'evaluation_id': rolled['session']['evaluation_id'], 'status': rolled['session']['status'],
         'profile_version': profile['active_profile']['version'],
-        'report_url': 'http://127.0.0.1:8765' + path + '/report'}, ensure_ascii=False))
+        'report_url': BASE_URL + path + '/report'}, ensure_ascii=False))
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import asyncio
+import logging
 from contextlib import suppress
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -64,12 +65,18 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             transport_scenario or TransportScenario(), region, choose_provider, learn_provider, evaluation_identity)
         async def maintenance():
             while True:
-                app.state.evaluations.expire()
+                try:
+                    app.state.evaluations.expire()
+                except sqlite3.OperationalError:
+                    logging.getLogger(__name__).warning('Evaluation storage busy; expiry will retry.')
                 await asyncio.sleep(.25)
         worker = asyncio.create_task(maintenance())
         async def learning_worker():
             while True:
-                await app.state.evaluations.learn_pending()
+                try:
+                    await app.state.evaluations.learn_pending()
+                except (sqlite3.OperationalError, WorldError):
+                    logging.getLogger(__name__).warning('Learning storage unavailable; pending work will retry.')
                 await asyncio.sleep(.1)
         learner = asyncio.create_task(learning_worker())
         try:
@@ -83,7 +90,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                 await learner
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
-                  description="步骤 01—08：世界、战斗、物品、记忆、NPC 任务与世界导演。未接模型时使用 fallback。")
+                  description="步骤 01—13：世界、战斗、任务、导演、存档、运输学习回退与基础经济。未接模型时使用 fallback。")
 
     async def error(request, code, message, status):
         request_id = "unknown"
@@ -96,7 +103,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         world_id = request.path_params.get("world_id")
         content = Envelope[dict](request_id=request_id, ok=False, world_id=world_id,
             error={"code": code, "message": message,
-                   "retryable": code in {"VERSION_CONFLICT", "BACKEND_UNAVAILABLE"}})
+                   "retryable": code in {"VERSION_CONFLICT", "BACKEND_UNAVAILABLE", 'REQUEST_IN_PROGRESS'}})
         return JSONResponse(status_code=status, content=content.model_dump(mode="json"))
 
     @app.exception_handler(WorldError)
@@ -122,7 +129,8 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         return Envelope[dict](request_id="health", ok=True, data={
             "status": "ok", "mode": mode, "component_modes": modes, "api_version": "v1",
             "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup",
-                             "pickup", "equip", "give", "story", "dialogue", "task_report", "advance", "director"],
+                             "pickup", "equip", "give", "story", "dialogue", "task_report", "advance", "director",
+                             'save', 'load', 'evaluation', 'learning', 'rollback', 'offers', 'craft', 'migration'],
             "model_connected": mode == "live", "map_fixture": app.state.map_fixture,
         })
 

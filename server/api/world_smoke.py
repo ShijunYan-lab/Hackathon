@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from server.api.smoke import call
+from server.api.smoke import BASE_URL, call
 
 
 def main():
@@ -48,8 +48,8 @@ def main():
                                    ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'ok': True, 'world_id': state['world_id'], 'tick': state['tick'],
         'dialogue_mode': dialogue_mode, 'director': result['data']['director'],
-        'state_url': 'http://127.0.0.1:8765' + path + '/state',
-        'story_url': 'http://127.0.0.1:8765' + path + '/story'}, ensure_ascii=False))
+        'state_url': BASE_URL + path + '/state',
+        'story_url': BASE_URL + path + '/story'}, ensure_ascii=False))
 
 
 if __name__ == '__main__':

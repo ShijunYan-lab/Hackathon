@@ -1,14 +1,17 @@
 """Exercise the running local service: python -m server.api.smoke."""
 import json
+import os
 from urllib.request import Request, urlopen
 from uuid import uuid4
+
+BASE_URL = os.environ.get('WORLD_API_URL', 'http://127.0.0.1:8765').rstrip('/')
 
 
 def call(path, body=None):
     data = None if body is None else json.dumps(body).encode("utf-8")
-    request = Request("http://127.0.0.1:8765" + path, data=data,
+    request = Request(BASE_URL + path, data=data,
                       headers={"Content-Type": "application/json"})
-    with urlopen(request, timeout=10) as response:
+    with urlopen(request, timeout=20) as response:
         result = json.load(response)
     assert result["ok"], result
     return result
