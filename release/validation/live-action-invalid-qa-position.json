@@ -1,0 +1,18 @@
+{
+  "actual_move_pixels": 0.0,
+  "errors": [
+    [
+      "CHECKPOINT",
+      "目标格不可通行。 [OUT_OF_RANGE]"
+    ],
+    [
+      "dialogue",
+      "需要靠近同地图中的目标。 [OUT_OF_RANGE]"
+    ]
+  ],
+  "intent_status": null,
+  "mode": null,
+  "passed": false,
+  "reply": null,
+  "task_succeeded": false
+}

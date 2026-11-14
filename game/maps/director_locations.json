@@ -1,0 +1,143 @@
+{
+  "enabled": true,
+  "interval_ticks": 3,
+  "locations": [
+    {
+      "id": "place_0",
+      "name": "灰橡镇",
+      "region_id": "overworld",
+      "tags": [
+        "village",
+        "migration_entry"
+      ],
+      "tile": {
+        "x": 63.0,
+        "y": 169.0
+      }
+    },
+    {
+      "id": "place_1",
+      "name": "鸦渡镇",
+      "region_id": "overworld",
+      "tags": [
+        "village",
+        "migration_entry"
+      ],
+      "tile": {
+        "x": 246.0,
+        "y": 165.0
+      }
+    },
+    {
+      "id": "place_2",
+      "name": "黑枝林地",
+      "region_id": "overworld",
+      "tags": [
+        "forest"
+      ],
+      "tile": {
+        "x": 64.0,
+        "y": 65.0
+      }
+    },
+    {
+      "id": "place_3",
+      "name": "暮钟修道院",
+      "region_id": "overworld",
+      "tags": [
+        "ruin"
+      ],
+      "tile": {
+        "x": 237.0,
+        "y": 46.0
+      }
+    },
+    {
+      "id": "place_4",
+      "name": "断誓堡",
+      "region_id": "overworld",
+      "tags": [
+        "ruin"
+      ],
+      "tile": {
+        "x": 191.0,
+        "y": 74.0
+      }
+    },
+    {
+      "id": "place_5",
+      "name": "苔石猎营",
+      "region_id": "overworld",
+      "tags": [
+        "camp"
+      ],
+      "tile": {
+        "x": 89.0,
+        "y": 92.0
+      }
+    },
+    {
+      "id": "place_6",
+      "name": "旧王大道",
+      "region_id": "overworld",
+      "tags": [
+        "bridge"
+      ],
+      "tile": {
+        "x": 142.0,
+        "y": 143.0
+      }
+    },
+    {
+      "id": "place_7",
+      "name": "苇岸渡口",
+      "region_id": "overworld",
+      "tags": [
+        "dock"
+      ],
+      "tile": {
+        "x": 166.0,
+        "y": 174.0
+      }
+    },
+    {
+      "id": "place_8",
+      "name": "枯井驿站",
+      "region_id": "overworld",
+      "tags": [
+        "camp"
+      ],
+      "tile": {
+        "x": 116.0,
+        "y": 202.0
+      }
+    },
+    {
+      "id": "place_9",
+      "name": "风磨丘",
+      "region_id": "overworld",
+      "tags": [
+        "mill"
+      ],
+      "tile": {
+        "x": 41.0,
+        "y": 191.0
+      }
+    },
+    {
+      "id": "place_10",
+      "name": "圣烬礼拜堂",
+      "region_id": "overworld",
+      "tags": [
+        "chapel"
+      ],
+      "tile": {
+        "x": 76.0,
+        "y": 148.0
+      }
+    }
+  ],
+  "max_proposals": 2,
+  "npc_alive_limit": 24,
+  "timeout_s": 9
+}

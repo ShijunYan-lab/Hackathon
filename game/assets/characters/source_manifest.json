@@ -1,0 +1,423 @@
+{
+  "actors": {
+    "bronn": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_village.png",
+      "source_row": 2
+    },
+    "elena": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_village.png",
+      "source_row": 1
+    },
+    "gareth": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_ruins.png",
+      "source_row": 3
+    },
+    "glen": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_forest.png",
+      "source_row": 0
+    },
+    "gravekeeper": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_ruins.png",
+      "source_row": 4
+    },
+    "holt": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_village.png",
+      "source_row": 0
+    },
+    "kyra": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_ruins.png",
+      "source_row": 0
+    },
+    "leah": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_forest.png",
+      "source_row": 2
+    },
+    "marta": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_village.png",
+      "source_row": 3
+    },
+    "morris": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_ruins.png",
+      "source_row": 2
+    },
+    "orwen": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_forest.png",
+      "source_row": 4
+    },
+    "player_female": {
+      "animation": "Reference-pixel deformation for walking; source has static directional views.",
+      "columns": 8,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "rows": 4,
+      "source": "player_original.png"
+    },
+    "player_male": {
+      "animation": "Reference-pixel deformation for walking; source has static directional views.",
+      "columns": 8,
+      "directions": [
+        "down",
+        "left",
+        "right",
+        "up"
+      ],
+      "rows": 4,
+      "source": "player_original.png"
+    },
+    "renard": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_village.png",
+      "source_row": 4
+    },
+    "scott": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_forest.png",
+      "source_row": 1
+    },
+    "severin": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_ruins.png",
+      "source_row": 1
+    },
+    "vick": {
+      "animations": {
+        "attack": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "idle": [
+          0,
+          1,
+          2
+        ],
+        "walk": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "columns": 12,
+      "rows": 1,
+      "source": "npc_forest.png",
+      "source_row": 3
+    }
+  },
+  "frame_size": [
+    48,
+    64
+  ],
+  "source_policy": "Original user artwork, cropped and nearest-neighbour fitted; no generative redraw."
+}

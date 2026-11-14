@@ -3,7 +3,10 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi.testclient import TestClient
 
-from server.main import create_app
+from functools import partial
+from pathlib import Path
+from server.main import create_app as server_create_app
+create_app = partial(server_create_app, regions_path=Path(__file__).parent / "fixtures/regions.json")
 from shared.protocol import Envelope, StateView
 
 

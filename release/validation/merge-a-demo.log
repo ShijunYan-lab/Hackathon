@@ -1,0 +1,17 @@
+Godot Engine v4.5.2.stable.official.6ce3de25a - https://godotengine.org
+
+Equipped: Unarmed
+Equipped: Unarmed
+Equipped: Unarmed
+Equipped: Unarmed
+Equipped: Unarmed
+Equipped: Unarmed
+Equipped: Iron Sword
+Equipped: Iron Sword
+Equipped: Iron Sword
+Equipped: Iron Sword
+MOCK world: one shared map, no scene transitions.
+WASD / Shift sprint / Space dodge / LMB attack / 1 melee / 2 ranged
+Z / X cycle weapons, Tab inventory, F inspect NPC, N spawn NPC, E interact
+MOCK Agent tick 1: NPCs receive cross-map tasks (not LLM).
+MOCK task mock_move_npc_healer_1: succeeded

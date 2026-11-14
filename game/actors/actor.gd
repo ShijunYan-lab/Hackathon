@@ -136,7 +136,7 @@ func _hurt_visual(amount: int, from_position: Vector2) -> void:
 	animation_lock_until_ms = Time.get_ticks_msec() + 220
 	visual.modulate = Color(1.0, 0.56, 0.56)
 	create_tween().tween_property(visual, "modulate", Color.WHITE, 0.2)
-	if from_position.distance_to(global_position) > 0.1:
+	if from_position != Vector2.ZERO and from_position.distance_to(global_position) > 0.1:
 		knockback_velocity = (global_position - from_position).normalized() * 125.0
 	var number := Label.new()
 	number.text = str(amount)

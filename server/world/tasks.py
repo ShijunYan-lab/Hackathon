@@ -147,21 +147,25 @@ def apply_task_report(connection, state, payload, region, seq):
     if task.actor_id != report.actor_id or task.status not in ("pending", "running"):
         raise WorldError("PRECONDITION_FAILED", "任务已失效或报告角色不匹配。")
     actor = living_actor(state, report.actor_id)
-    if task.kind != "MOVE":
+    if task.kind not in ("MOVE", "ATTACK"):
         raise WorldError("ACTION_NOT_SUPPORTED", "该任务类型尚未接入结算。")
     if report.status == "failed" and not report.failure_code:
         raise WorldError("PRECONDITION_FAILED", "失败任务需提供原因。")
     if report.status == "succeeded":
-        if report.failure_code or report.region_id != task.target_region_id or task.target_tile is None or math.hypot(
+        if task.kind == 'ATTACK':
+            target = next((value for value in state.actors if value.id == task.target_id), None)
+            if target is None or target.alive or report.failure_code:
+                raise WorldError('PRECONDITION_FAILED', '目标仍存活，不能报告战斗成功。')
+        elif report.failure_code or report.region_id != task.target_region_id or task.target_tile is None or math.hypot(
                 report.tile.x - task.target_tile.x, report.tile.y - task.target_tile.y) > .75:
             raise WorldError("OUT_OF_RANGE", "实际位置尚未到达任务目标。")
     apply_checkpoint(state, {"region_id": report.region_id,
         "positions": [{"actor_id": actor.id, "tile": report.tile.model_dump()}]}, region)
     effect_row = connection.execute("SELECT body FROM task_effects WHERE world_id=? AND task_id=?",
                                     (state.world_id, task.id)).fetchone()
-    if effect_row is None:
+    if effect_row is None and task.kind != 'ATTACK':
         raise WorldError("PRECONDITION_FAILED", "任务缺少后端效果定义。")
-    effect = json.loads(effect_row[0])
+    effect = json.loads(effect_row[0]) if effect_row else {'action':'SELF_DEFENSE'}
     witnesses = [value.id for value in state.actors if value.alive and value.region_id == actor.region_id
                  and math.hypot(value.tile.x - actor.tile.x, value.tile.y - actor.tile.y) <= 6]
     finished = event(state, "task_" + report.status, seq, actor.id, task.target_id,
@@ -183,4 +187,18 @@ def apply_task_report(connection, state, payload, region, seq):
     actor.task_id = None
     actor.behavior = "idle"
     connection.execute("INSERT INTO task_reports VALUES (?, ?, ?)", (state.world_id, task.id, serialized))
+    if task.kind == 'ATTACK' and region.get('reactive_npcs'):
+        template = next((value for value in region.get('npc_spawns',[]) if value.get('appearance_key')==actor.appearance_key),None)
+        if template:
+            from shared.protocol import Tile
+            home=Tile.model_validate(template['tile'])
+            if math.hypot(home.x-actor.tile.x,home.y-actor.tile.y)>1 and reachable(region,actor.tile,home):
+                returning=Task(id='task_'+uuid4().hex,actor_id=actor.id,kind='MOVE',target_region_id=actor.region_id,
+                    target_tile=home,status='pending',started_tick=state.tick,source_event_ids=[finished.id])
+                state.tasks.append(returning)
+                actor.task_id,actor.behavior=returning.id,'moving'
+                connection.execute('INSERT INTO task_effects VALUES (?, ?, ?)',
+                    (state.world_id,returning.id,json.dumps({'action':'RETURN_HOME'})))
+                events.append(event(state,'task_scheduled',seq+len(events),actor.id,None,
+                    {'task_id':returning.id,'action':'RETURN_HOME'},[finished.id],witnesses))
     return events

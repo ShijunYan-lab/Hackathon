@@ -1,0 +1,120 @@
+{
+  "landmarks": [
+    {
+      "kind": "village",
+      "name": "灰橡镇",
+      "tile": {
+        "x": 63.0,
+        "y": 165.0
+      }
+    },
+    {
+      "kind": "village",
+      "name": "鸦渡镇",
+      "tile": {
+        "x": 246.0,
+        "y": 161.0
+      }
+    },
+    {
+      "kind": "forest",
+      "name": "黑枝林地",
+      "tile": {
+        "x": 64.0,
+        "y": 65.0
+      }
+    },
+    {
+      "kind": "ruin",
+      "name": "暮钟修道院",
+      "tile": {
+        "x": 237.0,
+        "y": 46.0
+      }
+    },
+    {
+      "kind": "ruin",
+      "name": "断誓堡",
+      "tile": {
+        "x": 191.0,
+        "y": 74.0
+      }
+    },
+    {
+      "kind": "camp",
+      "name": "苔石猎营",
+      "tile": {
+        "x": 89.0,
+        "y": 92.0
+      }
+    },
+    {
+      "kind": "grave",
+      "name": "寂鸦墓园",
+      "tile": {
+        "x": 269.0,
+        "y": 100.0
+      }
+    },
+    {
+      "kind": "bridge",
+      "name": "旧王大道",
+      "tile": {
+        "x": 142.0,
+        "y": 143.0
+      }
+    },
+    {
+      "kind": "dock",
+      "name": "苇岸渡口",
+      "tile": {
+        "x": 166.0,
+        "y": 174.0
+      }
+    },
+    {
+      "kind": "camp",
+      "name": "枯井驿站",
+      "tile": {
+        "x": 116.0,
+        "y": 202.0
+      }
+    },
+    {
+      "kind": "mill",
+      "name": "风磨丘",
+      "tile": {
+        "x": 41.0,
+        "y": 191.0
+      }
+    },
+    {
+      "kind": "chapel",
+      "name": "圣烬礼拜堂",
+      "tile": {
+        "x": 76.0,
+        "y": 148.0
+      }
+    }
+  ],
+  "region_offsets": {
+    "greenwood": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "market": {
+      "x": 0.0,
+      "y": 112.0
+    },
+    "moonwood": {
+      "x": 160.0,
+      "y": 0.0
+    }
+  },
+  "source": "res://maps/world_layout.gd",
+  "tile_size_px": 32,
+  "world_size_tiles": {
+    "x": 320.0,
+    "y": 224.0
+  }
+}

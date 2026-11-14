@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from pydantic import Field
 
-from shared.protocol import DTO, Event, HitPayload, StateView, Tile
+from shared.protocol import DTO, Event, HitPayload, StateView, Tile, Task
 from server.world.commands import WorldError, apply_checkpoint
 
 
@@ -35,11 +35,14 @@ def validate_hit(state: StateView, hit: HitPayload, region: dict, rules: CombatR
     weapon = next((item for item in state.items if item.id == hit.weapon_id), None)
     if weapon is None or weapon.owner_id != attacker.id:
         raise WorldError("ITEM_NOT_OWNED", "攻击者不持有这件武器。")
-    if attacker.equipped_item_id != weapon.id or weapon.base_type not in ("sword", "axe"):
-        raise WorldError("PRECONDITION_FAILED", "攻击必须使用当前装备的近战武器。")
+    if attacker.equipped_item_id != weapon.id or weapon.base_type not in ("sword", "axe", "hammer", "bow", "crossbow", "staff"):
+        raise WorldError("PRECONDITION_FAILED", "攻击必须使用当前装备的武器。")
+    # A's projectile lifetime/range, in the shared 32px coordinate system.
+    # Damage, cooldown, ownership and death remain server-authoritative.
+    reach = {"bow": 310 / 32, "crossbow": 350 / 32, "staff": 300 / 32}.get(weapon.base_type, rules.melee_range_tiles)
     if math.hypot(hit.attacker_tile.x - hit.target_tile.x,
-                  hit.attacker_tile.y - hit.target_tile.y) > rules.melee_range_tiles:
-        raise WorldError("OUT_OF_RANGE", "目标超出近战距离。")
+                  hit.attacker_tile.y - hit.target_tile.y) > reach:
+        raise WorldError("OUT_OF_RANGE", "目标超出武器距离。")
     # Godot reports current hit positions, which may be newer than the last checkpoint.
     apply_checkpoint(state, {
         "region_id": hit.region_id,
@@ -83,6 +86,23 @@ def settle_hit(state: StateView, hit: HitPayload, region: dict, rules: CombatRul
     if hp_after > 0:
         state.actors = [actor.model_copy(update=updates) if actor.id == target.id else actor
                         for actor in state.actors]
+        defender = next(actor for actor in state.actors if actor.id == target.id)
+        if region.get('reactive_npcs', False) and target.kind == 'npc' and actors[hit.attacker_id].kind == 'player':
+            existing = next((task for task in state.tasks if task.actor_id == target.id
+                and task.kind == 'ATTACK' and task.target_id == hit.attacker_id and task.status in ('pending','running')), None)
+            if existing is None:
+                for task in state.tasks:
+                    if task.actor_id == target.id and task.status in ('pending','running'):
+                        task.status = 'cancelled'
+                        emit('task_cancelled', {'task_id':task.id,'reason':'SELF_DEFENSE'}, [hit_id], actor_id=target.id)
+                warning = emit('npc_protested', {'text':'住手！我没有招惹你。再靠近，我就还手了！',
+                    'mode':'world_reaction'}, [hit_id], actor_id=target.id, target_id=hit.attacker_id)
+                task = Task(id='task_'+uuid4().hex, actor_id=target.id, kind='ATTACK', target_id=hit.attacker_id,
+                    target_region_id=target.region_id, target_tile=actors[hit.attacker_id].tile.model_copy(),
+                    status='pending', started_tick=state.tick, source_event_ids=[hit_id])
+                state.tasks.append(task)
+                defender.task_id, defender.behavior = task.id, 'attacking'
+                emit('task_scheduled', {'task_id':task.id,'action':'SELF_DEFENSE'}, [warning], actor_id=target.id, target_id=hit.attacker_id)
         return events, False
 
     player_down = target.kind == "player"

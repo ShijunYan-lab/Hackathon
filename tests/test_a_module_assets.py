@@ -31,7 +31,8 @@ def test_embedded_script_resources_exist():
     missing = []
     for path in source:
         content = path.read_text(encoding='utf-8')
-        for rel in re.findall(r'res://([A-Za-z0-9_./-]+\.(?:gd|tscn|png))', content):
+        # Match complete extensions: .gdshader must not be truncated to .gd.
+        for rel in re.findall(r'res://([A-Za-z0-9_./-]+\.(?:gdshader|gd|tscn|png))(?![A-Za-z0-9_.])', content):
             if not (GAME/rel).is_file():
                 missing.append((str(path.relative_to(ROOT)), rel))
     assert not missing, missing

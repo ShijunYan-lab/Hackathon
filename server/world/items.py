@@ -44,8 +44,8 @@ def apply_item_command(state: StateView, kind: str, payload: dict, seq: int) -> 
             raise WorldError("ITEM_NOT_OWNED", "角色不持有这件物品。")
         updated = item
         if kind == "EQUIP":
-            if item.base_type not in ("sword", "axe"):
-                raise WorldError("PRECONDITION_FAILED", "该物品不能作为近战武器装备。")
+            if item.base_type not in ("sword", "axe", "hammer", "bow", "crossbow", "staff"):
+                raise WorldError("PRECONDITION_FAILED", "该物品不能作为武器装备。")
             old = next((value for value in state.items if value.id == actor.equipped_item_id), None)
             if old is not None:
                 remove_equipment(actor, old)

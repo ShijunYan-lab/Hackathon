@@ -1,0 +1,32 @@
+[
+    {
+        "asset":  "npc_forest.png",
+        "source_path":  "D:\\google_download\\ChatGPT 图像 2026年11月13日 22_55_15-2.png",
+        "sha256":  "30CC23CB18596AC9C9EF40B4E77C3738DA55819096BC6109450599147B4F5A51",
+        "original_unchanged":  true
+    },
+    {
+        "asset":  "npc_overview.png",
+        "source_path":  "D:\\google_download\\ChatGPT 图像 2026年11月13日 22_55_13-1.png",
+        "sha256":  "95C130225FB2310D999D1EED2D15597F02E9F8E654B1263DA657031D66660366",
+        "original_unchanged":  true
+    },
+    {
+        "asset":  "npc_ruins.png",
+        "source_path":  "D:\\google_download\\ChatGPT 图像 2026年11月13日 22_55_17-4.png",
+        "sha256":  "EC51EE5930D2E6D6C7DCB1802C9BFAEBAD7D0803436EA383DC70DB450D32F7D9",
+        "original_unchanged":  true
+    },
+    {
+        "asset":  "npc_village.png",
+        "source_path":  "D:\\google_download\\ChatGPT 图像 2026年11月13日 22_55_16-3.png",
+        "sha256":  "60EA722E4D3B7956506CAFE765301AC221A591C546377668CA0ABEAAC7BB6CB6",
+        "original_unchanged":  true
+    },
+    {
+        "asset":  "player_original.png",
+        "source_path":  "D:\\google_download\\紫晶幻想角色精灵图-2.png",
+        "sha256":  "6D9041DB1E5EEABD4AD712F147361952197ACF63EC2386A5BA6B4086E64C09CA",
+        "original_unchanged":  true
+    }
+]

@@ -60,7 +60,7 @@ def record_event(connection, world_id, event: Event):
             memory = {"id": memory_id, "npc_id": npc_id, "statement": event_summary(event)[:300],
                       "source_type": "observation", "source_event_ids": [event.id],
                       "confidence": 1.0, "status": "supported"}
-            if event.type in ("speech", "info_shared"):
+            if event.type in ("speech", "npc_speech", "info_shared"):
                 memory.update(source_type="report", confidence=.4, status="unverified")
             connection.execute("INSERT OR IGNORE INTO npc_memories VALUES (?, ?, ?, ?)",
                                (world_id, npc_id, memory_id, json.dumps(memory, ensure_ascii=False)))

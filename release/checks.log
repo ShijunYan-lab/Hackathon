@@ -1,0 +1,47 @@
+Godot Engine v4.5.2.stable.official.6ce3de25a - https://godotengine.org
+
+PASS baked editable TileMapLayer present
+PASS entities use Y sorting
+PASS forest contains no dirt-road tiles
+PASS arrow-key binding move_left
+PASS arrow-key binding move_right
+PASS arrow-key binding move_up
+PASS arrow-key binding move_down
+PASS each player frame is exactly 32x48
+PASS female appearance switches to independent sprite sheet
+PASS male appearance restores
+PASS WASD drives real CharacterBody2D motion
+PASS movement selects correct directional animation
+PASS UI input lock stops player movement
+PASS Shift increases actual movement speed
+PASS north bridge crosses river without teleporting
+PASS south bridge crosses river without teleporting
+PASS water is solid outside bridge/dock tiles
+PASS boundary prevents escape on side 0
+PASS boundary prevents escape on side 1
+PASS boundary prevents escape on side 2
+PASS boundary prevents escape on side 3
+PASS west air wall exists in physics space
+PASS forest sight radius shrinks to 110px
+PASS forest trees shorten actual line of sight
+PASS distant forest target is invisible
+PASS second village uses 142px sight radius
+PASS home village remains open
+PASS checkpoint uses region-local tile units
+PASS market spawn is not blocked
+PASS market_to_greenwood both exit endpoints are clear
+PASS market_to_moonwood both exit endpoints are clear
+PASS greenwood spawn is not blocked
+PASS greenwood_to_market both exit endpoints are clear
+PASS greenwood_to_moonwood both exit endpoints are clear
+PASS moonwood spawn is not blocked
+PASS moonwood_to_market both exit endpoints are clear
+PASS moonwood_to_greenwood both exit endpoints are clear
+PASS walkable shared-grid route to (118, 81)
+PASS walkable shared-grid route to (36, 55)
+PASS walkable shared-grid route to (119, 55)
+PASS walkable shared-grid route to (117, 30)
+PASS walkable shared-grid route to (86, 84)
+PASS north route remains connected with other crossings closed
+PASS south route remains connected with other crossings closed
+RESULT 44 passed / 0 failed

@@ -1,0 +1,89 @@
+Godot Engine v4.5.2.stable.official.6ce3de25a - https://godotengine.org
+
+PASS 71,680 editable native terrain cells; 4x original area
+PASS environment and actors use Y sorting
+PASS entire enlarged forest has no dirt paths
+PASS no circular sight mask attached to main scene
+PASS arrow input move_left
+PASS arrow input move_right
+PASS arrow input move_up
+PASS arrow input move_down
+PASS male player uses exactly 48x64 frames
+PASS female source artwork switches and also uses 48x64 frames
+PASS all 15 supplied NPC designs present
+PASS holt has 48x64 idle, walking and attack frames
+PASS elena has 48x64 idle, walking and attack frames
+PASS bronn has 48x64 idle, walking and attack frames
+PASS marta has 48x64 idle, walking and attack frames
+PASS renard has 48x64 idle, walking and attack frames
+PASS glen has 48x64 idle, walking and attack frames
+PASS scott has 48x64 idle, walking and attack frames
+PASS leah has 48x64 idle, walking and attack frames
+PASS vick has 48x64 idle, walking and attack frames
+PASS orwen has 48x64 idle, walking and attack frames
+PASS kyra has 48x64 idle, walking and attack frames
+PASS severin has 48x64 idle, walking and attack frames
+PASS morris has 48x64 idle, walking and attack frames
+PASS gareth has 48x64 idle, walking and attack frames
+PASS gravekeeper has 48x64 idle, walking and attack frames
+PASS production player moves with input at walking speed
+PASS movement selects right-facing source art
+PASS Shift increases real movement speed
+PASS input lock prevents walking
+PASS real player crosses bridge at y=143
+PASS real player crosses bridge at y=202
+PASS river blocks travel away from bridges
+PASS air wall/clamp prevents escape move_left
+PASS air wall/clamp prevents escape move_right
+PASS air wall/clamp prevents escape move_up
+PASS air wall/clamp prevents escape move_down
+PASS physical boundary collider (-60.0, 5400.0)
+PASS physical boundary collider (10300.0, 5400.0)
+PASS physical boundary collider (4000.0, -60.0)
+PASS physical boundary collider (4000.0, 7230.0)
+PASS E opens nearby named NPC dialogue
+PASS dialogue locks player and talking NPC
+PASS Chinese text submission appends original local dialogue
+PASS empty chat is ignored
+PASS craft topic uses the selected NPC's content
+PASS typing appearance shortcut cannot change avatar during dialogue
+PASS Esc closes dialogue and restores movement
+PASS M opens world map and locks movement
+PASS Esc closes world map
+PASS checkpoint reports region-local tiles
+PASS market shared spawn is clear
+PASS market_to_greenwood shared exit endpoints are clear
+PASS market_to_moonwood shared exit endpoints are clear
+PASS greenwood shared spawn is clear
+PASS greenwood_to_market shared exit endpoints are clear
+PASS greenwood_to_moonwood shared exit endpoints are clear
+PASS moonwood shared spawn is clear
+PASS moonwood_to_market shared exit endpoints are clear
+PASS moonwood_to_greenwood shared exit endpoints are clear
+PASS continuous grid route to (246, 165)
+PASS continuous grid route to (76, 111)
+PASS continuous grid route to (250, 111)
+PASS continuous grid route to (237, 50)
+PASS continuous grid route to (191, 78)
+PASS continuous grid route to (165, 176)
+PASS continuous grid route to (89, 94)
+PASS continuous grid route to (41, 194)
+PASS continuous grid route to (267, 107)
+PASS NPC reachable without teleport: 霍尔特
+PASS NPC reachable without teleport: 伊莲娜
+PASS NPC reachable without teleport: 布朗
+PASS NPC reachable without teleport: 玛尔塔
+PASS NPC reachable without teleport: 雷纳
+PASS NPC reachable without teleport: 格伦
+PASS NPC reachable without teleport: 斯科特
+PASS NPC reachable without teleport: 莉娅
+PASS NPC reachable without teleport: 维克
+PASS NPC reachable without teleport: 奥尔文
+PASS NPC reachable without teleport: 凯拉
+PASS NPC reachable without teleport: 塞维尔
+PASS NPC reachable without teleport: 莫瑞斯
+PASS NPC reachable without teleport: 加雷斯
+PASS NPC reachable without teleport: 墓守
+PASS north route connects villages with other crossings closed
+PASS south route connects villages with other crossings closed
+RESULT 86 passed / 0 failed

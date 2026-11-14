@@ -12,7 +12,7 @@ from server.world.commands import WorldError
 WORLD_TABLES = ('events', 'world_combat_rules', 'attacks', 'attack_hits', 'knowledge_index',
     'event_knowledge', 'npc_memories', 'world_memories', 'story_threads', 'task_effects',
     'task_reports', 'npc_profiles', 'decisions', 'world_runtime', 'director_runs', 'director_focus',
-    'story_chapters', 'wallets', 'offers', 'world_economy_rules', 'resource_needs', 'migration_sources')
+    'story_chapters', 'wallets', 'offers', 'world_economy_rules', 'resource_needs', 'migration_sources', 'npc_dialogue_turns')
 
 
 def digest(value):

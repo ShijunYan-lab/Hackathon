@@ -95,7 +95,8 @@ class Evaluations:
                 raise WorldError('PRECONDITION_FAILED', '护卫费用不能超过场景预算。')
             merchant, guard = state.actors[1:3]
             merchant.tile = self.scenario.start.model_copy()
-            guard.tile = self.scenario.start.model_copy()
+            # Distinct footprints: physical NPCs no longer walk through each other.
+            guard.tile = self.scenario.start.model_copy(update={'y':self.scenario.start.y+1})
             # Dynamic actor identity; threat and gear are frozen once in S0.
             threat_id = 'monster_' + uuid4().hex
             threat = ActorState(id=threat_id, name='路途威胁', kind='monster', alive=True,

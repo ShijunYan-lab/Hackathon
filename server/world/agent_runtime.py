@@ -13,7 +13,7 @@ from server.storage import knowledge
 from server.storage.sqlite import response
 from server.world.commands import WorldError
 from server.world.items import living_actor, require_near
-from server.world.tasks import apply_intent, event
+from server.world.tasks import apply_intent, event, reachable
 
 
 SCHEMA = """
@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS agent_requests (
     scope TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL,
     token TEXT NOT NULL, started_at REAL NOT NULL, PRIMARY KEY(scope, id)
 );
+CREATE TABLE IF NOT EXISTS npc_dialogue_turns (
+    world_id TEXT NOT NULL, npc_id TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL,
+    PRIMARY KEY(world_id, npc_id, id)
+);
 """
 
 
@@ -38,8 +42,8 @@ class AgentGateway:
         self.dialogue_provider = dialogue
         self.plan_provider = plan
         self.timeout_s = timeout_s
-        if not 0 < timeout_s <= 8:
-            raise ValueError("Agent timeout must be greater than zero and at most eight seconds")
+        if not 0 < timeout_s <= 65:
+            raise ValueError("Agent timeout must be greater than zero and at most 65 seconds")
         self.semaphore = asyncio.Semaphore(2)
         self.last_mode = "fallback"
 
@@ -80,6 +84,13 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
     if npc.kind != "npc":
         raise WorldError("NPC_NOT_FOUND", "该角色不是 NPC。", 404)
     stored = profile(connection, state.world_id, npc_id)
+    region_row = connection.execute("SELECT region FROM worlds WHERE id=?", (state.world_id,)).fetchone()
+    region = json.loads(region_row[0]) if region_row else {}
+    templates = region.get("npc_spawns", [])
+    template = next((value for value in templates if value.get("appearance_key") == npc.appearance_key), {})
+    recent_dialogue = [json.loads(row[0]) for row in connection.execute(
+        "SELECT body FROM npc_dialogue_turns WHERE world_id=? AND npc_id=? ORDER BY rowid DESC LIMIT 8",
+        (state.world_id, npc_id))][::-1]
     selected_memories, sources = [], set()
     for memory in reversed(knowledge.memories(connection, state.world_id, npc_id, limit=12)):
         candidate = sources | set(memory['source_event_ids'])
@@ -106,10 +117,41 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
         value = json.loads(row[0])
         if npc_id in (value['actor_id'], value['target_id']) and value['status'] == 'pending' and value['expires_tick'] > state.tick:
             entities.append(value)
+    # B only selects actions with C-provided parameters. Offer actual reachable
+    # local destinations rather than asking B to invent coordinates or IDs.
+    candidates = []
+    if region.get('reactive_npcs') and not npc.task_id:
+        for target in [*state.actors, *state.sites]:
+            if target.id == npc.id or target.id not in visible_ids or not getattr(target, 'alive', True):
+                continue
+            if not reachable(region, npc.tile, target.tile):
+                continue
+            distance = math.hypot(target.tile.x-npc.tile.x, target.tile.y-npc.tile.y)
+            if distance > .75:
+                candidates.append({'action':'MOVE','target_id':target.id,'params':{},
+                    'description':'走到身边停下；实际到达后才能报告完成。'})
+            if getattr(target, 'remaining', 0) > 0:
+                candidates.append({'action':'GATHER','target_id':target.id,'params':{},
+                    'description':'走到这处资源点采集。'})
+    if region.get('reactive_npcs'):
+        # Keep parameter-free social actions available alongside movement.
+        for known_entity in entities:
+            if known_entity.get('target_id') == npc.id and known_entity.get('status') == 'pending':
+                candidates.append({'action':'RESPOND_PROPOSAL','target_id':known_entity['id'],'params':{},
+                    'description':'接受这个已经送达本人的提议；交易仍由世界校验余额、距离和归属。'})
+        for org_id in npc.org_ids:
+            if org_id in {value['id'] for value in entities}:
+                candidates.append({'action':'LEAVE_ORG','target_id':org_id,'params':{},
+                    'description':'退出自己所属的组织。'})
     return AgentContext(npc_id=npc.id, world_version=state.world_version,
         identity={"id": npc.id, "name": npc.name, "org_ids": npc.org_ids,
-                  "region_id": npc.region_id, "tile": npc.tile.model_dump()},
-        goals=stored["goals"], own_inventory=[item for item in state.items if item.owner_id == npc.id],
+                  "region_id": npc.region_id, "tile": npc.tile.model_dump(), "hp": npc.hp,
+                  "alive": npc.alive, "role": template.get("role", "旅人"),
+                  "home_tile": template.get("tile"), "recent_dialogue": recent_dialogue,
+                  "action_candidates": candidates,
+                  "residence": template.get("place", "这片土地"),
+                  "conduct": "在自己的工作地点附近活动。除非玩家明确请求、采集或自卫，不要跟随玩家前往出生点。"},
+        goals=stored["goals"] or template.get("goals", []), own_inventory=[item for item in state.items if item.owner_id == npc.id],
         known_entities=entities, known_events=[*known, *extra_events], memories=selected_memories,
         allowed_actions=["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO", 'PROPOSE_RELATION',
                          'RESPOND_PROPOSAL', 'CRAFT', 'JOIN_ORG', 'LEAVE_ORG'],
@@ -132,7 +174,7 @@ class AgentRuntime:
         if previous:
             if previous["body"] != serialized:
                 raise WorldError("REQUEST_ID_REUSED", "同一请求 ID 携带不同内容。", 409)
-            if time.time() - previous["started_at"] < 30:
+            if time.time() - previous["started_at"] < max(30, self.gateway.timeout_s + 5):
                 raise WorldError("REQUEST_IN_PROGRESS", "该请求仍在处理，请保留原 ID 稍后重试。", 409)
         token = uuid4().hex
         connection.execute("INSERT OR REPLACE INTO agent_requests VALUES (?, ?, ?, ?, ?)",
@@ -244,12 +286,20 @@ class AgentRuntime:
                 self.store.append_event(connection, world_id, speech)
                 state, events, task_ids, intent_status = self.apply_decision(
                     connection, state, context, decision, mode, region, seq + 1)
+                reply_event = event(state, "npc_speech", seq + 1 + len(events), body.npc_id, state.player_id,
+                    {"text": decision.reply, "mode": mode, "source_type": "report"}, [speech.id],
+                    [body.npc_id, state.player_id])
+                events.append(reply_event)
+                turn = {"player": body.text, "npc": decision.reply, "mode": mode,
+                        "source_event_ids": [speech.id, reply_event.id]}
+                connection.execute("INSERT INTO npc_dialogue_turns VALUES (?, ?, ?, ?)",
+                    (world_id, body.npc_id, body.request_id, json.dumps(turn, ensure_ascii=False)))
                 state.world_version += 1
                 state = StateView.model_validate(state.model_dump())
                 connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))
                 for value in events:
                     self.store.append_event(connection, world_id, value)
-                result = response(body.request_id, state, {"reply": decision.reply, "mode": mode,
+                result = response(body.request_id, state, {"reply": decision.reply, "mode": mode, "npc_id":body.npc_id,
                     "intent_status": intent_status, "task_ids": task_ids,
                     "events": [value.model_dump(mode="json") for value in [speech, *events]],
                     "state": state.model_dump(mode="json")})

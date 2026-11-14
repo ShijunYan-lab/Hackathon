@@ -1,0 +1,177 @@
+{
+  "errors": [],
+  "evaluation": {
+    "comparable": true,
+    "improvement": "improved",
+    "learning_update": {
+      "changed_values": {
+        "direct": {
+          "new": 0.12,
+          "old": 0.6
+        }
+      },
+      "explanation": "根据 direct 的实际奖励 0.000，Q 从 0.600 更新至 0.120。",
+      "from_version": 0.0,
+      "source_event_ids": [
+        "evt_0ee9f37a4ed2451cb6480f71b9f1f96d",
+        "evt_44dae0e9659f4bb49fcf51600a07cbb3",
+        "evt_b245944b3f4e4177bb628fad65f7082c",
+        "evt_58d91344569e4582a3c04d6fa604d388",
+        "evt_b1aab28441904548b33c3e8db73fab68",
+        "evt_c71a5a823cfa4a82a0d3e4fe2263d138",
+        "evt_009028cfc55840d1a22980650ee33ab1",
+        "evt_fccd5b4bae394a88b93b649381c8f1c9",
+        "evt_320ca3395a8d40a7b58d823edb89accb",
+        "evt_19fecca9bb6b433ead46580f1c4e3b9e",
+        "evt_d745df608a17424ab7298a70e143c92b",
+        "evt_6bd53d247b61483ab2145b25b33e32a5",
+        "evt_4e239203688f452e9a8e4ec3e6155c6f",
+        "evt_7e118378ebe84aa78d780de4cc9f83dc",
+        "evt_2193c5cafea941eaae3f9c6961590991"
+      ],
+      "source_run_id": "run_2ff0c4750bac467ea3cb81be460fa641",
+      "to_version": 1.0,
+      "updated_profile": {
+        "alpha": 0.8,
+        "context_key": "transport_v1",
+        "learner_id": "npc_df982d7c94aa5c4c",
+        "memories": [
+          {
+            "id": "mem_transport_5484830dc2e75356525d7921fd4eef3799a34d9b96ddd31e5523b4a3c5b9c8df",
+            "profile_version": 1.0,
+            "source_event_ids": [
+              "evt_0ee9f37a4ed2451cb6480f71b9f1f96d",
+              "evt_44dae0e9659f4bb49fcf51600a07cbb3",
+              "evt_b245944b3f4e4177bb628fad65f7082c",
+              "evt_58d91344569e4582a3c04d6fa604d388",
+              "evt_b1aab28441904548b33c3e8db73fab68",
+              "evt_c71a5a823cfa4a82a0d3e4fe2263d138",
+              "evt_009028cfc55840d1a22980650ee33ab1",
+              "evt_fccd5b4bae394a88b93b649381c8f1c9",
+              "evt_320ca3395a8d40a7b58d823edb89accb",
+              "evt_19fecca9bb6b433ead46580f1c4e3b9e",
+              "evt_d745df608a17424ab7298a70e143c92b",
+              "evt_6bd53d247b61483ab2145b25b33e32a5",
+              "evt_4e239203688f452e9a8e4ec3e6155c6f",
+              "evt_7e118378ebe84aa78d780de4cc9f83dc",
+              "evt_2193c5cafea941eaae3f9c6961590991"
+            ],
+            "source_run_id": "run_2ff0c4750bac467ea3cb81be460fa641",
+            "statement": "执行 direct，实际交付率 0.0%，奖励 0.000。"
+          }
+        ],
+        "profile_id": "profile_63adf3ff320647a2b8566afac3ce266b",
+        "retrieval_epoch": 1.0,
+        "values": {
+          "direct": 0.12,
+          "escort": 0.5
+        },
+        "version": 1.0
+      }
+    },
+    "notes": [
+      "动作报告来自客户端；真实 Godot 验收另行记录。"
+    ],
+    "runs": [
+      {
+        "kind": "first",
+        "measured": true,
+        "metrics": {
+          "cargo_delivered": 0.0,
+          "cargo_initial": 10.0,
+          "delivered_ratio": 0.0,
+          "duration_ms": 4945.0,
+          "gold_initial": 20.0,
+          "gold_spent": 0.0,
+          "merchant_survived": false,
+          "reward": 0.0,
+          "task_success": false
+        },
+        "mode": "live",
+        "profile_version": 0.0,
+        "run_id": "run_2ff0c4750bac467ea3cb81be460fa641",
+        "source_event_ids": [
+          "evt_0ee9f37a4ed2451cb6480f71b9f1f96d",
+          "evt_44dae0e9659f4bb49fcf51600a07cbb3",
+          "evt_b245944b3f4e4177bb628fad65f7082c",
+          "evt_58d91344569e4582a3c04d6fa604d388",
+          "evt_b1aab28441904548b33c3e8db73fab68",
+          "evt_c71a5a823cfa4a82a0d3e4fe2263d138",
+          "evt_009028cfc55840d1a22980650ee33ab1",
+          "evt_fccd5b4bae394a88b93b649381c8f1c9",
+          "evt_320ca3395a8d40a7b58d823edb89accb",
+          "evt_19fecca9bb6b433ead46580f1c4e3b9e",
+          "evt_d745df608a17424ab7298a70e143c92b",
+          "evt_6bd53d247b61483ab2145b25b33e32a5",
+          "evt_4e239203688f452e9a8e4ec3e6155c6f",
+          "evt_7e118378ebe84aa78d780de4cc9f83dc",
+          "evt_2193c5cafea941eaae3f9c6961590991"
+        ],
+        "status": "finished",
+        "strategy": "direct",
+        "world_id": "world_3b1e33f0b926443387be77ce207fd35d"
+      },
+      {
+        "kind": "second",
+        "measured": true,
+        "metrics": {
+          "cargo_delivered": 4.0,
+          "cargo_initial": 10.0,
+          "delivered_ratio": 0.4,
+          "duration_ms": 9845.0,
+          "gold_initial": 20.0,
+          "gold_spent": 5.0,
+          "merchant_survived": true,
+          "reward": 0.375,
+          "task_success": false
+        },
+        "mode": "live",
+        "profile_version": 1.0,
+        "run_id": "run_0d5c1f185d784bf98cfe69c1fccfaf6b",
+        "source_event_ids": [
+          "evt_4c09fc0a352a493aa2508e85e3783a4c",
+          "evt_dbad2535ce574c2395a0015fa08378d2",
+          "evt_12b171153c5e4716adfccad378b9ea7f",
+          "evt_10a72151a7fe41799ff17bafaa7cea88",
+          "evt_097dbe7d72464ff3b09afd279bb041c1",
+          "evt_7cbfcf688e5c4b5bbc3c131300e161d6",
+          "evt_2b3a06a1faa04ef8b158d771c436c3c0",
+          "evt_087d6ae2f4464cbc9288bb7e9c606398",
+          "evt_8d3e97a1023a437b979d7cc259a4437a",
+          "evt_43d1a9508dd441efa5d42874c4296f64",
+          "evt_d6fa33573ef846998840c7a6c6c799c7",
+          "evt_bf1fb8d0f744443f8498158bdbdd37d1",
+          "evt_0923b4b6f36a4bee86b5dfe1d486b0ce",
+          "evt_6a9835bf677e4e899db6f0ac3f885aa7",
+          "evt_410fff14e1a44857b05643fe4d10d2a2",
+          "evt_3be0917d9c4549e6a86e1eb0f393ea9f",
+          "evt_0eba5705eb224050b034de3707524fc4",
+          "evt_e6cd5060b3d14c04914e37b68921df8b"
+        ],
+        "status": "finished",
+        "strategy": "escort",
+        "world_id": "world_9bb18b02e05849c683209d18caa3387e"
+      }
+    ],
+    "session": {
+      "active_profile_version": 1.0,
+      "active_world_id": "world_9bb18b02e05849c683209d18caa3387e",
+      "baseline_profile_version": 0.0,
+      "evaluation_id": "evaluation_802b0422014c4657a5571a5103fdd806",
+      "evaluation_version": 5.0,
+      "learner_id": "npc_df982d7c94aa5c4c",
+      "mode": "live",
+      "run_ids": [
+        "run_2ff0c4750bac467ea3cb81be460fa641",
+        "run_0d5c1f185d784bf98cfe69c1fccfaf6b"
+      ],
+      "scenario_hash": "ae6b9f11250d2c3473a337ecd112f66a126659a2577e1d4af0d116ba1b0881fd",
+      "scenario_id": "transport_v1",
+      "seed": 1794635516.0,
+      "snapshot_id": "save_a83f402e09f64595970d0a5ae4fc77ce",
+      "status": "complete"
+    }
+  },
+  "failed": [],
+  "passed": 24
+}

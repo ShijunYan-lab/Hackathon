@@ -1,0 +1,7 @@
+OK healer.png           128x160, frame 32x32, 7 actions
+OK knight.png           128x224, frame 32x32, 7 actions
+OK merchant.png         128x160, frame 32x32, 7 actions
+OK wanderer.png         128x160, frame 32x32, 7 actions
+OK wisp.png             128x160, frame 32x32, 7 actions
+OK wolf.png             128x160, frame 32x32, 7 actions
+PASS: 6 existing sprites plus synthetic 192x448 layout validated

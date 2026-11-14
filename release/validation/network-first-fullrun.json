@@ -1,0 +1,182 @@
+{
+  "errors": [],
+  "evaluation": {
+    "comparable": true,
+    "improvement": "improved",
+    "learning_update": {
+      "changed_values": {
+        "direct": {
+          "new": 0.12,
+          "old": 0.6
+        }
+      },
+      "explanation": "根据 direct 的实际奖励 0.000，Q 从 0.600 更新至 0.120。",
+      "from_version": 0.0,
+      "source_event_ids": [
+        "evt_bcdb11799b214ab09b0bd6afccbde126",
+        "evt_bd4849c1c72143fd811cca2729e674d8",
+        "evt_6eb958eb218e4c13a86cdb154ddff408",
+        "evt_7e8f8461b2154f29a11a68bfb789e4da",
+        "evt_f0bee0aa09cd4be38450653780cd393a",
+        "evt_1cc332e17b734491b3146a88970e74a3",
+        "evt_4c6ff809f3ab4984970a14cc634b5b64",
+        "evt_fb7fa7fc2a69463bb6c558c6559f18ad",
+        "evt_3779c762d38a4e0e8659e69b506d568d",
+        "evt_e61a794476214ac4a43f74f9d1da7f91",
+        "evt_97bbac086cca485e9e9db4c9ef6d4ba5",
+        "evt_93cec3b70194478bb391cc4458137735",
+        "evt_9289a1ce9fce4dadadfdd65919a9d1ae",
+        "evt_bbe9f90f552642d3b2a6f2141b47d0d8",
+        "evt_111c64f01010474c948804f27c5795ac"
+      ],
+      "source_run_id": "run_513a5f7523594f4e8a969d2e26b6ff65",
+      "to_version": 1.0,
+      "updated_profile": {
+        "alpha": 0.8,
+        "context_key": "transport_v1",
+        "learner_id": "npc_af7a4cb60315587f",
+        "memories": [
+          {
+            "id": "mem_transport_e78e42789193e7a8e9ee5edb85ac48f3c634b551e3b7ba1c85b7efa70ce59d4f",
+            "profile_version": 1.0,
+            "source_event_ids": [
+              "evt_bcdb11799b214ab09b0bd6afccbde126",
+              "evt_bd4849c1c72143fd811cca2729e674d8",
+              "evt_6eb958eb218e4c13a86cdb154ddff408",
+              "evt_7e8f8461b2154f29a11a68bfb789e4da",
+              "evt_f0bee0aa09cd4be38450653780cd393a",
+              "evt_1cc332e17b734491b3146a88970e74a3",
+              "evt_4c6ff809f3ab4984970a14cc634b5b64",
+              "evt_fb7fa7fc2a69463bb6c558c6559f18ad",
+              "evt_3779c762d38a4e0e8659e69b506d568d",
+              "evt_e61a794476214ac4a43f74f9d1da7f91",
+              "evt_97bbac086cca485e9e9db4c9ef6d4ba5",
+              "evt_93cec3b70194478bb391cc4458137735",
+              "evt_9289a1ce9fce4dadadfdd65919a9d1ae",
+              "evt_bbe9f90f552642d3b2a6f2141b47d0d8",
+              "evt_111c64f01010474c948804f27c5795ac"
+            ],
+            "source_run_id": "run_513a5f7523594f4e8a969d2e26b6ff65",
+            "statement": "执行 direct，实际交付率 0.0%，奖励 0.000。"
+          }
+        ],
+        "profile_id": "profile_5e97eab3c2134c3dbe7b3a20d64a95c3",
+        "retrieval_epoch": 1.0,
+        "values": {
+          "direct": 0.12,
+          "escort": 0.5
+        },
+        "version": 1.0
+      }
+    },
+    "notes": [
+      "动作报告来自客户端；真实 Godot 验收另行记录。"
+    ],
+    "runs": [
+      {
+        "kind": "first",
+        "measured": true,
+        "metrics": {
+          "cargo_delivered": 0.0,
+          "cargo_initial": 10.0,
+          "delivered_ratio": 0.0,
+          "duration_ms": 4884.0,
+          "gold_initial": 20.0,
+          "gold_spent": 0.0,
+          "merchant_survived": false,
+          "reward": 0.0,
+          "task_success": false
+        },
+        "mode": "live",
+        "profile_version": 0.0,
+        "run_id": "run_513a5f7523594f4e8a969d2e26b6ff65",
+        "source_event_ids": [
+          "evt_bcdb11799b214ab09b0bd6afccbde126",
+          "evt_bd4849c1c72143fd811cca2729e674d8",
+          "evt_6eb958eb218e4c13a86cdb154ddff408",
+          "evt_7e8f8461b2154f29a11a68bfb789e4da",
+          "evt_f0bee0aa09cd4be38450653780cd393a",
+          "evt_1cc332e17b734491b3146a88970e74a3",
+          "evt_4c6ff809f3ab4984970a14cc634b5b64",
+          "evt_fb7fa7fc2a69463bb6c558c6559f18ad",
+          "evt_3779c762d38a4e0e8659e69b506d568d",
+          "evt_e61a794476214ac4a43f74f9d1da7f91",
+          "evt_97bbac086cca485e9e9db4c9ef6d4ba5",
+          "evt_93cec3b70194478bb391cc4458137735",
+          "evt_9289a1ce9fce4dadadfdd65919a9d1ae",
+          "evt_bbe9f90f552642d3b2a6f2141b47d0d8",
+          "evt_111c64f01010474c948804f27c5795ac"
+        ],
+        "status": "finished",
+        "strategy": "direct",
+        "world_id": "world_05502727a57c4d6b8a57c7a4ca88238e"
+      },
+      {
+        "kind": "second",
+        "measured": true,
+        "metrics": {
+          "cargo_delivered": 6.0,
+          "cargo_initial": 10.0,
+          "delivered_ratio": 0.6,
+          "duration_ms": 8576.0,
+          "gold_initial": 20.0,
+          "gold_spent": 5.0,
+          "merchant_survived": true,
+          "reward": 0.575,
+          "task_success": false
+        },
+        "mode": "live",
+        "profile_version": 1.0,
+        "run_id": "run_af3e9eaef15645a1aae29b173754e58b",
+        "source_event_ids": [
+          "evt_df0c8217bf4041a8b90dc2f0684ea475",
+          "evt_6758ff8f295240c9a03d2ce7694dce34",
+          "evt_412acf3b0fcc434698a9bc9b1d0ceae2",
+          "evt_7066c12c995c47b1b755b2a8c493787b",
+          "evt_8d55c76327e04f468e155ac76621f856",
+          "evt_43782a2ead87452db7bb5e3b86ad5f1b",
+          "evt_c6ea48ce095f42078b2a198c683b68da",
+          "evt_ab9951ae2ea94cd1be8bbefc33c0496f",
+          "evt_f1ad0469657f470f940f88f8445d074f",
+          "evt_393d5d8de9ec4fbd944c481c12fd4b41",
+          "evt_9841e71b3be843a9a0817164bd1121f1",
+          "evt_695734605e9b4a5db604c9b04e990b7d",
+          "evt_de04e3b0cd1d402fa31354b662562261",
+          "evt_87e0a0ebf99f4530998c29ce895568eb",
+          "evt_6f7300c68b09414da3962c0169739338",
+          "evt_93071c29cf7449b1805f87775a8f1b51",
+          "evt_0197e2f521844ff7a6da7b013c462294",
+          "evt_4ad55b8bebf348b0a032a9ad76e7cc79",
+          "evt_875ad8ef332243809b77e40a289aa88d",
+          "evt_e04936d7061342e6b40a9ad56399269a",
+          "evt_1d752c6ca4be4b019c690879a23295a4",
+          "evt_b1c4235f7d7e4ea88eed96425f31bac8",
+          "evt_e1093c9b55c3436086a62654979ec289"
+        ],
+        "status": "finished",
+        "strategy": "escort",
+        "world_id": "world_8284a3f843444820b4ecc82b2ee6e18f"
+      }
+    ],
+    "session": {
+      "active_profile_version": 1.0,
+      "active_world_id": "world_8284a3f843444820b4ecc82b2ee6e18f",
+      "baseline_profile_version": 0.0,
+      "evaluation_id": "evaluation_49e2b0693a344fcea3a9ce12c064e2d6",
+      "evaluation_version": 5.0,
+      "learner_id": "npc_af7a4cb60315587f",
+      "mode": "live",
+      "run_ids": [
+        "run_513a5f7523594f4e8a969d2e26b6ff65",
+        "run_af3e9eaef15645a1aae29b173754e58b"
+      ],
+      "scenario_hash": "8ec70f408327acdd6b25defa15018dfbb38879f39d5682f033f4494ba1251dae",
+      "scenario_id": "transport_v1",
+      "seed": 1794628602.0,
+      "snapshot_id": "save_7ec70a7e9e9f4d8abed46e47fcd44ae1",
+      "status": "complete"
+    }
+  },
+  "failed": [],
+  "passed": 22
+}

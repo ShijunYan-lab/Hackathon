@@ -66,6 +66,9 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         app.state.turns = WorldTurns(app.state.agents, config, director_provider or model,
                                     chapter_writer or (model.write_chapter if model else None))
         app.state.snapshots = Snapshots(app.state.store)
+        if region.get('reactive_npcs'):
+            from server.world.overworld_upgrade import upgrade
+            upgrade(app.state.store, region)
         app.state.economy = EconomyAPI(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
             transport_scenario or TransportScenario(), region, choose_provider, learn_provider, evaluation_identity)
@@ -134,6 +137,8 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         mode = "live" if "live" in modes.values() else "fallback"
         return Envelope[dict](request_id="health", ok=True, data={
             "status": "ok", "mode": mode, "component_modes": modes, "api_version": "v1",
+            "region_id": app.state.region['id'], "map_width_tiles": app.state.region['width_tiles'],
+            "map_height_tiles": app.state.region['height_tiles'],
             "capabilities": ["persistent_worlds", "checkpoint", "events", "hit", "death_cleanup",
                              "pickup", "equip", "give", "story", "dialogue", "task_report", "advance", "director",
                              'save', 'load', 'evaluation', 'learning', 'rollback', 'offers', 'craft', 'migration'],
@@ -150,7 +155,25 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.get("/v1/worlds/{world_id}/state")
     def state(world_id: str):
         current = app.state.store.state(world_id)
-        return response("state", current, {"state": current.model_dump(mode="json")})
+        with app.state.store.connection() as connection:
+            runtime = connection.execute('SELECT evaluation_active FROM world_runtime WHERE world_id=?', (world_id,)).fetchone()
+            frozen = bool(runtime and runtime[0])
+            recovery = connection.execute('''SELECT w.id FROM worlds w LEFT JOIN world_runtime r ON w.id=r.world_id
+                WHERE COALESCE(r.evaluation_active,0)=0 ORDER BY w.rowid DESC LIMIT 1''').fetchone() if frozen else None
+        data = {"state": current.model_dump(mode="json")}
+        if frozen:
+            data.update(evaluation_active=True, recovery_world_id=recovery[0] if recovery else None)
+        return response("state", current, data)
+
+    @app.get('/v1/worlds/{world_id}/dialogue/{npc_id}/history')
+    def dialogue_history(world_id: str, npc_id: str):
+        current = app.state.store.state(world_id)
+        app.state.agents.check_dialogue(current, npc_id)
+        with app.state.store.connection() as connection:
+            turns = [json.loads(row[0]) for row in connection.execute(
+                'SELECT body FROM npc_dialogue_turns WHERE world_id=? AND npc_id=? ORDER BY rowid DESC LIMIT 20',
+                (world_id, npc_id))][::-1]
+        return response('dialogue_history', current, {'npc_id':npc_id, 'turns':turns})
 
     @app.post("/v1/worlds/{world_id}/commands")
     def commands(world_id: str, body: CommandRequest):

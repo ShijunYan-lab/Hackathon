@@ -111,7 +111,7 @@ class ItemStats(DTO):
 class ItemState(DTO):
     id: str
     name: str
-    base_type: Literal["sword", "axe", "material", "consumable"]
+    base_type: Literal["sword", "axe", "hammer", "bow", "crossbow", "staff", "material", "consumable"]
     quality: Literal["common", "uncommon", "rare"]
     material_id: str
     affixes: list[str] = Field(default_factory=list, max_length=2)

@@ -48,6 +48,8 @@ async def complete(messages: list[dict[str, str]], *, max_tokens: int = 1800) ->
         raise AgentCallFailed("模型并发已满，请稍后重试")
     try:
         payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
+        if any("JSON Schema:" in message.get("content", "") for message in messages if message.get("role") == "system"):
+            payload["response_format"] = {"type": "json_object"}
         if httpx.URL(url).host == "api.deepseek.com":
             payload["thinking"] = {"type": "disabled"}
         async with asyncio.timeout(timeout):

@@ -170,6 +170,13 @@ class WorldTurns:
                     state, planned, task_ids, intent_status = self.agents.apply_decision(
                         connection, state, context, decision, mode, region, seq, triggers)
                     emitted.extend(planned)
+                    if decision.reply:
+                        speaker = next(actor for actor in state.actors if actor.id == npc_id)
+                        witnesses = [actor.id for actor in state.actors if actor.alive and actor.region_id == speaker.region_id
+                            and abs(actor.tile.x-speaker.tile.x)+abs(actor.tile.y-speaker.tile.y)<=6]
+                        emitted.append(event(state, 'npc_speech', seq+len(emitted), npc_id, None,
+                            {'text':decision.reply,'mode':mode,'source_type':'report'},
+                            [value.id for value in planned], witnesses))
                     summaries.append({"npc_id": npc_id, "mode": mode, "intent_status": intent_status,
                                       "task_ids": task_ids})
                 elif decision is not None:

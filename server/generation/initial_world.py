@@ -20,10 +20,14 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
              for y in range(region["height_tiles"])
              for x in range(region["width_tiles"])
              if (x, y) not in blocked and (x, y) != (int(spawn.x), int(spawn.y))]
-    npc_count = rng.randint(5, 7)
+    templates = region.get("npc_spawns", [])
+    npc_count = len(templates) if templates else rng.randint(5, 7)
     if len(tiles) < npc_count:
         raise ValueError("Map has insufficient walkable tiles")
-    npc_tiles = rng.sample(tiles, npc_count)
+    npc_tiles = [Tile.model_validate(value["tile"]) for value in templates] if templates else rng.sample(tiles, npc_count)
+    for tile in npc_tiles:
+        if (int(tile.x), int(tile.y)) in blocked or tile.x >= region["width_tiles"] or tile.y >= region["height_tiles"]:
+            raise ValueError("NPC template must spawn on a walkable map tile")
     player_id = identifier("player", 0)
     item_id = identifier("item", 0)
     event_id = identifier("evt", 0)
@@ -32,11 +36,12 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
                         hp=80, max_hp=80, armor=0, region_id=region["id"], tile=spawn,
                         appearance_key="traveler", equipped_item_id=item_id)]
     for index, tile in enumerate(npc_tiles):
+        template = templates[index] if templates else {}
         actors.append(ActorState(
             id=identifier("npc", index), kind="npc",
-            name=rng.choice(["林", "岚", "石", "星", "溪"]) + rng.choice(["舟", "叶", "歌", "羽"]) + str(index + 1),
+            name=template.get("name") or rng.choice(["林", "岚", "石", "星", "溪"]) + rng.choice(["舟", "叶", "歌", "羽"]) + str(index + 1),
             alive=True, hp=45, max_hp=45, armor=0, region_id=region["id"], tile=tile,
-            appearance_key="traveler", org_ids=[org_ids[index % len(org_ids)]],
+            appearance_key=template.get("appearance_key", "traveler"), org_ids=[org_ids[index % len(org_ids)]],
         ))
     organizations = []
     for index, org_id in enumerate(org_ids):
@@ -55,6 +60,15 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
         actor.equipped_item_id = npc_weapon.id
         actor.armor = npc_weapon.stats.armor
         weapons.append(npc_weapon)
+    loadout = {"axe": ("伐木斧", 10, .65), "hammer": ("旅行战锤", 13, .82),
+               "bow": ("猎弓", 6, .56), "crossbow": ("轻弩", 11, 1.12), "staff": ("紫晶杖", 8, .72)}
+    for index, kind in enumerate(region.get("starter_weapons", []), start=100):
+        if kind not in loadout:
+            continue
+        name, damage, cooldown = loadout[kind]
+        weapons.append(ItemState(id=identifier("item", index), name=name, base_type=kind,
+            quality="common", material_id="iron", owner_id=player_id, origin_event_ids=[event_id],
+            stats=ItemStats(damage=damage, cooldown_s=cooldown, armor=0)))
     sites = [SiteView.model_validate(site) for site in region.get("sites", [])]
     if not sites:
         herb_tile = min(tiles, key=lambda tile: abs(tile.x - spawn.x - 3) + abs(tile.y - spawn.y))

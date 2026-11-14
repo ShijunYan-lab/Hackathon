@@ -1,0 +1,13 @@
+Godot Engine v4.5.2.stable.official.6ce3de25a - https://godotengine.org
+
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/painted/architecture_source.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2550)
+   GDScript backtrace (most recent call first):
+       [0] split_architecture (res://assets/build_environment.gd:19)
+       [1] _initialize (res://assets/build_environment.gd:10)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/painted/nature_source.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2550)
+   GDScript backtrace (most recent call first):
+       [0] split_nature (res://assets/build_environment.gd:36)
+       [1] _initialize (res://assets/build_environment.gd:11)
+ENVIRONMENT: 9 architecture sprites, 12 nature/market sprites, 16 painted props, native details and 192 terrain tiles.
