@@ -6,7 +6,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from shared.evaluation_protocol import (EvaluationSession, LearningProfile, RunView, RunMetrics,
-    TransportChoice, TransportContext)
+    TransportChoice, TransportContext, TransportOutcome)
+from server.evaluation.learning import fallback_update, validate_update
 from shared.protocol import ActorState, Envelope, NewWorldRequest, StateView, Task
 from server.storage.sqlite import encode
 from server.storage.snapshots import digest
@@ -29,10 +30,11 @@ def implementation_hash():
 
 
 class Evaluations:
-    def __init__(self, store, snapshots, turns, scenario, region, choose_provider=None):
+    def __init__(self, store, snapshots, turns, scenario, region, choose_provider=None, learn_provider=None):
         self.store, self.snapshots, self.turns = store, snapshots, turns
         self.scenario, self.region = scenario, region
         self.choose_provider = choose_provider
+        self.learn_provider = learn_provider
         self.code_hash = implementation_hash()
         with store.connection() as connection:
             connection.executescript(SCHEMA)
@@ -176,7 +178,8 @@ class Evaluations:
                 available.append('escort')
             context = TransportContext(learner_id=profile.learner_id, context_key=profile.context_key,
                 available_strategies=available, own_gold=config['gold_initial'], escort_cost=config['escort_cost'],
-                guard_id=guard.id)
+                guard_id=guard.id, known_event_ids=list(dict.fromkeys(
+                    source for memory in profile.memories for source in memory.source_event_ids)))
         try:
             choice, mode = await self.choose(context, profile)
             with self.store.connection(write=True) as connection:
@@ -332,6 +335,70 @@ class Evaluations:
     def get(self, evaluation_id):
         with self.store.connection() as connection:
             return self.output(connection, self.row(connection, evaluation_id), 'evaluation')
+
+    async def learn_pending(self):
+        with self.store.connection(write=True) as connection:
+            candidates = [json.loads(row[0]) for row in connection.execute('SELECT body FROM evaluations')]
+            data = next((value for value in candidates if value['session']['status'] == 'learning'
+                and value.get('learning_lease_until', 0) <= self.store.clock()), None)
+            if data is None:
+                return
+            run = json.loads(connection.execute('SELECT body FROM evaluation_runs WHERE id=?',
+                (data['session']['run_ids'][0],)).fetchone()[0])
+            profile = LearningProfile.model_validate(data['profile'])
+            outcome = TransportOutcome(run_id=run['view']['run_id'], learner_id=profile.learner_id,
+                context_key=profile.context_key, profile_version=profile.version,
+                strategy=run['view']['strategy'], metrics=run['view']['metrics'],
+                source_event_ids=run['view']['source_event_ids'])
+            token = uuid4().hex
+            data['learning_token'], data['learning_lease_until'] = token, self.store.clock() + 30
+            version = data['session']['evaluation_version']
+            self.persist(connection, data)
+        provider, mode, rejection = self.learn_provider, 'fallback', None
+        if provider is None:
+            try:
+                provider = importlib.import_module('server.agents.transport_learning').learn_transport
+            except (ImportError, AttributeError):
+                provider = None
+        update = None
+        if provider is not None:
+            try:
+                async def invoke():
+                    async with self.turns.agents.gateway.semaphore:
+                        return await asyncio.to_thread(provider, profile.model_copy(deep=True), outcome.model_copy(deep=True))
+                raw = await asyncio.wait_for(invoke(), 8)
+                update = validate_update(profile, outcome, raw)
+                mode = 'live'
+            except Exception:
+                rejection = 'PROVIDER_FAILED_OR_INVALID_UPDATE'
+        if update is None:
+            update = validate_update(profile, outcome, fallback_update(profile, outcome))
+        with self.store.connection(write=True) as connection:
+            current = self.row(connection, data['session']['evaluation_id'])
+            if (current['session']['status'] != 'learning' or current.get('learning_token') != token
+                    or current['session']['evaluation_version'] != version or current['learning_update'] is not None):
+                return
+            world_id = run['view']['world_id']
+            existing = {row[0] for row in connection.execute('SELECT id FROM events WHERE world_id=?', (world_id,))}
+            if not set(update.source_event_ids) <= existing:
+                raise WorldError('INVALID_LEARNING_UPDATE', '学习来源未写入本轮账本。')
+            state = StateView.model_validate_json(self.store.world_row(connection, world_id)['state'])
+            seq = connection.execute('SELECT MAX(seq) FROM events WHERE world_id=?', (world_id,)).fetchone()[0] + 1
+            audit = event(state, 'learning_committed', seq, profile.learner_id, None,
+                {'source_run_id': outcome.run_id, 'from_version': profile.version, 'to_version': update.to_version,
+                 'changed_values': {key: value.model_dump() for key, value in update.changed_values.items()},
+                 'mode': mode, 'provider_rejection': rejection}, update.source_event_ids, [profile.learner_id])
+            self.store.append_event(connection, world_id, audit)
+            state.world_version += 1
+            connection.execute('UPDATE worlds SET state=? WHERE id=?', (state.model_dump_json(), world_id))
+            current['profile'], current['learning_update'] = update.updated_profile.model_dump(mode='json'), update.model_dump(mode='json')
+            current['learning_mode'] = mode
+            current['learning_lease_until'] = 0
+            current['session'].update(status='ready_for_second', active_profile_version=update.to_version,
+                                      evaluation_version=version + 1)
+            if mode == 'fallback':
+                current['session']['mode'] = 'fallback'
+            self.persist(connection, current)
 
     def report(self, evaluation_id):
         with self.store.connection() as connection:

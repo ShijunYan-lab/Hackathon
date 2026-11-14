@@ -35,7 +35,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                combat_rules: CombatRules | None = None, clock=None,
                dialogue_provider=None, plan_provider=None, agent_timeout_s=8,
                director_provider=None, director_config=None, transport_scenario=None,
-               choose_provider=None) -> FastAPI:
+               choose_provider=None, learn_provider=None) -> FastAPI:
     if allow_debug is None:
         allow_debug = os.environ.get("ALLOW_DEBUG", "false").lower() == "true"
     @asynccontextmanager
@@ -58,18 +58,26 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         app.state.turns = WorldTurns(app.state.agents, config, director_provider)
         app.state.snapshots = Snapshots(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
-            transport_scenario or TransportScenario(), region, choose_provider)
+            transport_scenario or TransportScenario(), region, choose_provider, learn_provider)
         async def maintenance():
             while True:
                 app.state.evaluations.expire()
                 await asyncio.sleep(.25)
         worker = asyncio.create_task(maintenance())
+        async def learning_worker():
+            while True:
+                await app.state.evaluations.learn_pending()
+                await asyncio.sleep(.1)
+        learner = asyncio.create_task(learning_worker())
         try:
             yield
         finally:
             worker.cancel()
+            learner.cancel()
             with suppress(asyncio.CancelledError):
                 await worker
+            with suppress(asyncio.CancelledError):
+                await learner
 
     app = FastAPI(title="未定之境 · C 世界后端", version="v1", lifespan=lifespan,
                   description="步骤 01—08：世界、战斗、物品、记忆、NPC 任务与世界导演。未接模型时使用 fallback。")
