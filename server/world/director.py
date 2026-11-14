@@ -69,6 +69,7 @@ class DirectorContext(DTO):
     story_threads: list[StoryThread] = Field(default_factory=list)
     locations: list[MapLocation] = Field(default_factory=list)
     resource_needs: list[dict] = Field(default_factory=list)
+    chapters: list[dict] = Field(default_factory=list)
     history_scope: str = 'full'
     execution_rules: dict = Field(default_factory=dict)
     allowed_proposals: list[Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION"]]
@@ -95,7 +96,7 @@ class DirectorContext(DTO):
 
 class DirectorProposal(DTO):
     kind: Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION"]
-    source_event_ids: list[str] = Field(min_length=1)
+    source_event_ids: list[str] = Field(min_length=1, max_length=16)
     reason_summary: str = Field(min_length=1, max_length=300)
     target_id: str | None = None
     location_id: str | None = None
@@ -113,7 +114,7 @@ class DirectorDecision(DTO):
 class DirectorProvider(Protocol):
     """B's model adapter implements this callable; C owns its input/output."""
 
-    async def __call__(self, context: DirectorContext) -> DirectorDecision: ...
+    async def __call__(self, context: DirectorContext) -> DirectorDecision | dict: ...
 
 
 class DirectorResult(DTO):
@@ -123,49 +124,72 @@ class DirectorResult(DTO):
     status: Literal["proposed", "skipped", "unavailable", "rejected"]
     reason_code: str
     decision: DirectorDecision | None = None
+    issues: list[str] = Field(default_factory=list)
 
 
-def validate_decision(context: DirectorContext, decision: DirectorDecision,
-                      config: DirectorConfig) -> None:
-    """Validate references; execution must recheck current facts and authority."""
+def proposal_issue(context, proposal, config, event_ids):
+    if proposal.kind not in context.allowed_proposals:
+        return 'PROPOSAL_DISABLED'
+    if not set(proposal.source_event_ids) <= event_ids:
+        return 'UNKNOWN_EVENT_REFERENCE'
+    if proposal.kind == 'FOLLOW_UP':
+        if not any(actor.id == proposal.target_id and actor.kind == 'npc' and actor.alive
+                   for actor in context.state.actors):
+            return 'FOLLOW_UP_TARGET_INVALID'
+    elif proposal.kind == 'RESOURCE_NEED':
+        if proposal.quantity > config.resource_limits.get(proposal.resource, 0):
+            return 'RESOURCE_LIMIT'
+        if not any(org.id == proposal.target_id and org.status == 'active' for org in context.state.organizations):
+            return 'ORGANIZATION_INVALID'
+    else:
+        if proposal.target_id is not None:
+            return 'MIGRATION_TARGET_INVALID'
+        if sum(actor.alive and actor.kind == 'npc' for actor in context.state.actors) >= config.npc_alive_limit:
+            return 'POPULATION_LIMIT'
+        if not any(place.id == proposal.location_id and 'migration_entry' in place.tags
+                   for place in context.locations):
+            return 'MIGRATION_ENTRY_INVALID'
+    if proposal.location_id is not None and not any(place.id == proposal.location_id for place in context.locations):
+        return 'UNKNOWN_LOCATION'
+    return None
+
+
+def review_decision(context, raw, config):
+    """An invalid suggestion must not discard other independent, valid output."""
+    if isinstance(raw, DirectorDecision):
+        raw = raw.model_dump()
+    if not isinstance(raw, dict) or not set(raw) <= DirectorDecision.model_fields.keys():
+        raise ValueError('Invalid decision object')
     event_ids = {event.id for event in context.events}
-    if decision.summary and not decision.source_event_ids:
-        raise ValueError("Summary requires source events")
-    if not set(decision.source_event_ids) <= event_ids:
-        raise ValueError("Summary cites unavailable events")
-    if len(decision.proposals) > config.max_proposals:
-        raise ValueError("Proposal budget exceeded")
-    actors = {actor.id: actor for actor in context.state.actors}
-    organizations = {org.id: org for org in context.state.organizations}
-    sites = {site.id for site in context.state.sites}
-    locations = {place.id: place for place in context.locations}
-    alive_npcs = sum(actor.alive and actor.kind == "npc"
-                     for actor in context.state.actors)
-    for proposal in decision.proposals:
-        if proposal.kind not in context.allowed_proposals:
-            raise ValueError("Proposal kind has no enabled executor")
-        if not set(proposal.source_event_ids) <= event_ids:
-            raise ValueError("Proposal cites unavailable events")
-        if proposal.location_id is not None and proposal.location_id not in locations:
-            raise ValueError("Unknown map location")
-        if proposal.kind == "MIGRATION":
-            if proposal.target_id is not None:
-                raise ValueError("Migration creates a new identity")
-            if alive_npcs >= config.npc_alive_limit:
-                raise ValueError("Population limit reached")
-            place = locations.get(proposal.location_id)
-            if place is None or "migration_entry" not in place.tags:
-                raise ValueError("Migration requires a configured entry")
-        elif proposal.kind == "RESOURCE_NEED":
-            if proposal.resource not in config.resource_limits or proposal.quantity > config.resource_limits[proposal.resource]:
-                raise ValueError('Resource request exceeds configured capabilities')
-            organization = organizations.get(proposal.target_id)
-            if organization is None or organization.status != "active":
-                raise ValueError("Resource need requires an active organization")
+    issues = []
+    try:
+        decision = DirectorDecision.model_validate({key: raw[key] for key in ('summary', 'source_event_ids') if key in raw})
+        if ((decision.summary and not decision.source_event_ids)
+                or not set(decision.source_event_ids) <= event_ids):
+            raise ValueError('Invalid summary evidence')
+    except (ValueError, TypeError):
+        decision = DirectorDecision()
+        issues.append('SUMMARY_EVIDENCE_INVALID')
+    proposals = raw.get('proposals', [])
+    if not isinstance(proposals, list):
+        return decision, issues + ['PROPOSALS_FORMAT_INVALID']
+    if len(proposals) > 4:
+        issues.append('PROPOSAL_BUDGET_EXCEEDED')
+    for candidate in proposals[:4]:
+        if len(decision.proposals) >= config.max_proposals:
+            issues.append('PROPOSAL_BUDGET_EXCEEDED')
+            break
+        try:
+            proposal = DirectorProposal.model_validate(candidate)
+        except (ValueError, TypeError):
+            issues.append('PROPOSAL_FORMAT_INVALID')
+            continue
+        code = proposal_issue(context, proposal, config, event_ids)
+        if code:
+            issues.append(code)
         else:
-            target_id = proposal.target_id
-            if target_id not in actors and target_id not in organizations and target_id not in sites:
-                raise ValueError("Follow-up requires an existing target")
+            decision.proposals.append(proposal)
+    return decision, list(dict.fromkeys(issues))
 
 
 class WorldDirector:
@@ -209,14 +233,18 @@ class WorldDirector:
                 'MODEL_CONTEXT_TOO_LARGE'} else 'PROVIDER_FAILED'
             return result
         try:
-            decision = DirectorDecision.model_validate(raw)
-            validate_decision(snapshot, decision, self.config)
+            decision, result.issues = review_decision(snapshot, raw, self.config)
         except (ValueError, TypeError):
             result.status = "rejected"
             result.reason_code = "INVALID_DECISION"
             return result
+        if result.issues and not (decision.summary or decision.proposals):
+            result.status = "rejected"
+            result.reason_code = result.issues[0]
+            return result
         result.mode = "live"
         result.status = "proposed"
-        result.reason_code = "AWAITING_WORLD_VALIDATION"
+        result.reason_code = ("PARTIAL_DECISION" if result.issues else
+                              "AWAITING_WORLD_VALIDATION" if decision.proposals else "NO_ACTION_PROPOSED")
         result.decision = decision
         return result

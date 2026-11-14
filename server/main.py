@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
-from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest, SaveRequest, LoadRequest
+from shared.protocol import AdvanceRequest, CommandRequest, DialogueRequest, Envelope, NewWorldRequest, SaveRequest, LoadRequest, StateView
 from server.storage.snapshots import Snapshots
 from server.evaluation.scenario import TransportScenario
 from server.evaluation.service import Evaluations
@@ -29,6 +29,7 @@ from server.world.commands import WorldError
 from server.world.combat import CombatRules
 from server.world.agent_runtime import AgentGateway, AgentRuntime
 from server.world.advance import WorldTurns
+from server.world import chronicle
 from server.world.director import DirectorConfig
 from server.world.model_gateway import DirectorModel
 
@@ -39,7 +40,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                region_id: str | None = None, allow_debug: bool | None = None,
                combat_rules: CombatRules | None = None, clock=None,
                dialogue_provider=None, plan_provider=None, agent_timeout_s=8,
-               director_provider=None, director_config=None, transport_scenario=None,
+               director_provider=None, director_config=None, transport_scenario=None, chapter_writer=None,
                choose_provider=None, learn_provider=None, evaluation_identity=None) -> FastAPI:
     if allow_debug is None:
         allow_debug = os.environ.get("ALLOW_DEBUG", "false").lower() == "true"
@@ -62,7 +63,8 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
                                                                     timeout_s=agent_timeout_s, integration_model=npc_integration))
         config = director_config or DirectorConfig.from_file(os.environ.get(
             "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
-        app.state.turns = WorldTurns(app.state.agents, config, director_provider or model)
+        app.state.turns = WorldTurns(app.state.agents, config, director_provider or model,
+                                    chapter_writer or (model.write_chapter if model else None))
         app.state.snapshots = Snapshots(app.state.store)
         app.state.economy = EconomyAPI(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
@@ -227,6 +229,17 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
         if view == "debug" and not allow_debug:
             raise WorldError("DEBUG_DISABLED", "当前未开放调试视图。", 403)
         return app.state.store.events(world_id, after_seq, limit, view == "debug")
+
+    @app.get("/v1/worlds/{world_id}/story/chapters")
+    def chapters(world_id: str, after_seq: int = Query(default=0, ge=0), limit: int = Query(default=20, ge=1, le=50),
+                 latest: bool = False):
+        store = app.state.store
+        with store.connection() as connection:
+            state = StateView.model_validate_json(store.world_row(connection, world_id)["state"])
+            records = chronicle.read(connection, world_id, after_seq, limit + 1, latest=latest)
+            page = records[:limit]
+            return response("chapters", state, {"chapters": page, "has_more": len(records) > limit,
+                "next_after_seq": page[-1]["through_event_seq"] if page else after_seq})
 
     @app.get("/v1/worlds/{world_id}/story")
     def story(world_id: str, view: Literal["player", "debug"] = "player"):

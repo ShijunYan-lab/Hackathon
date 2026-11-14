@@ -1,5 +1,6 @@
 """Select recent evidence and unresolved threads without inventing compressed facts."""
 import json
+from server.world import chronicle
 from server.world.director import DirectorContext
 from shared.protocol import Event
 
@@ -9,13 +10,29 @@ def build(connection, state, config, triggers):
     recent = connection.execute("""SELECT id FROM events WHERE world_id=?
         AND json_extract(body, '$.type') NOT IN ('positions_checkpointed', 'decision_accepted', 'world_advanced', 'director_assessed')
         ORDER BY seq DESC LIMIT ?""", (world_id, config.event_budget))
-    selected = triggers | {row[0] for row in recent}
+    recent_ids = [row[0] for row in recent]
+    selected = set(triggers)
+    relevant = {value for event in (
+        Event.model_validate_json(connection.execute(
+            'SELECT body FROM events WHERE world_id=? AND id=?', (world_id, source)).fetchone()[0])
+        for source in triggers) for value in (event.actor_id, event.target_id) if value and value != state.player_id}
+    chapters = []
+    ceiling = config.event_budget * 2
+    for chapter in chronicle.recall(connection, world_id, relevant):
+        sources = set(chapter['source_event_ids'])
+        if len(selected | sources) <= ceiling:
+            selected.update(sources)
+            chapters.append(chapter)
+    # Reserve room for older chapters before filling the recent window.
+    for source in recent_ids:
+        if len(selected) >= ceiling:
+            break
+        selected.add(source)
     # Open problems survive the recent-event window. Keep source lists intact or skip the record.
     threads = connection.execute("""SELECT body FROM story_threads WHERE world_id=?
         ORDER BY (json_extract(body, '$.status') = 'open') DESC, rowid DESC LIMIT ?""",
         (world_id, config.thread_budget))
     kept_threads, kept_memories = [], []
-    ceiling = config.event_budget * 2
     for row in threads:
         record = json.loads(row[0])
         history = record['source_event_ids']
@@ -48,7 +65,7 @@ def build(connection, state, config, triggers):
         for source in selected), key=lambda entry: entry.event_seq)
     return DirectorContext(state=state, events=events,
         memories=list(reversed(kept_memories)), story_threads=kept_threads, resource_needs=kept_needs,
-        locations=config.locations, history_scope='Selected recent events plus source-linked memories and unresolved threads; omitted history is not evidence of absence.',
+        locations=config.locations, chapters=chapters, history_scope='Selected recent events plus source-linked memories and unresolved threads; omitted history is not evidence of absence.',
         execution_rules={'max_proposals': config.max_proposals, 'resource_limits': config.resource_limits,
             'npc_alive_limit': config.npc_alive_limit,
             'FOLLOW_UP': 'Only a living NPC target can be queued for planning; this does not execute its actions.',

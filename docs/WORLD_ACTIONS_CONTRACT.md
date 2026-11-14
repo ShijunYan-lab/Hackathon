@@ -69,3 +69,11 @@ NPC 模型和导演共用最多 2 个并发调用槽；单次模型至多 8 秒�
 Windows 本机运行 `pwsh -NoProfile -File server/start_world_model.ps1 -Port 8774 -DebugViews -NpcDemo` 可显式启用 NPC 联调适配器。若 B 提供 server.agents.service.dialogue/plan，优先使用 B。NPC 联调适配器使用同一 DeepSeek 凭据和独立的角色知情上下文，不承担比赛学习。开启调试后可用 `python -m server.api.director_smoke --npc-follow-up` 检查队列；WORLD_API_URL 指向所用端口。模型可以自主不安排跟进，此时脚本会标出该次未观察到入队。
 
 导演调试接口默认返回最近 20 条评估和至多 20 条跟进，limit 范围 1–100。剧情接口返回最近 50 条可见记忆及 50 条可见线索。历史事件用 /events 分页查询。
+
+### 玩家章节和自动推进
+
+GET /v1/worlds/{id}/story/chapters 提供 title、narrative、open_question、source_event_ids、through_event_seq。默认按时间正序，通过 next_after_seq 继续读取；latest=true 用于取最近一页。章节是可追溯的 AI 叙事，世界裁决仍使用事件账本。每次处理最多 12 个玩家已见关键事件，只有写入成功才移动章节进度。导演回忆会保留开篇，并按人物相关性、重要程度和时间选取少量章节和来源。旧存档加载后从其自身时间线继续。
+
+回合是 NPC 规划和导演评估的后台时间点。客户端在游戏运行时串行自动调用 advance，空闲用 idle_timer，重要事件用 major_event 加本世界事件 ID。Demo 每 20 秒空闲自动推进，报告命中后约 2 秒可提前触发；对话编辑、请求未确认、页面隐藏、评审和切换时暂停。Godot 按 INTEGRATION 的单定时器约定接入，并在战斗动画期间暂停。游戏画面和移动使用自己的帧率。
+
+导演响应的 issues 列出被过滤内容的原因。PARTIAL_DECISION 表示有有效部分保留。NO_ACTION_PROPOSED 是模型完成评估后没有新建议。有效建议仍由事务内规则独立决定是否执行，accepted_proposals 才是被世界接受的数量。

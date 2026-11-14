@@ -83,7 +83,10 @@ def test_invalid_suggestion_rejected(change):
             result.proposals[0].kind = "MIGRATION"
             result.proposals[0].target_id = None
         return result
-    assert assess(invalid).status == "rejected"
+    result = assess(invalid)
+    assert result.mode == "live" and result.reason_code == "PARTIAL_DECISION"
+    assert result.decision.summary and result.decision.proposals == []
+    assert result.issues
 
 
 def test_timeout_returns_safe_status():
@@ -108,4 +111,17 @@ def test_disabled_executor_is_rejected():
     value.allowed_proposals = []
     result = asyncio.run(WorldDirector(DirectorConfig(), synthetic_provider).assess(
         value, last_assessed_tick=0))
-    assert result.status == "rejected"
+    assert result.reason_code == "PARTIAL_DECISION"
+
+def test_mixed_model_output_keeps_valid_proposal_with_bad_siblings():
+    async def mixed(value):
+        decision = (await synthetic_provider(value)).model_dump()
+        decision['source_event_ids'] = ['missing-summary-source']
+        decision['proposals'].insert(0, {'kind': 'UNKNOWN'})
+        decision['proposals'].insert(1, {**decision['proposals'][-1], 'source_event_ids': ['missing']})
+        return decision
+    result = assess(mixed)
+    assert result.reason_code == 'PARTIAL_DECISION'
+    assert result.decision.summary == ''
+    assert len(result.decision.proposals) == 1
+    assert set(result.issues) == {'SUMMARY_EVIDENCE_INVALID', 'PROPOSAL_FORMAT_INVALID', 'UNKNOWN_EVENT_REFERENCE'}

@@ -9,7 +9,7 @@ from server.world.agent_runtime import build_context
 from server.world.commands import WorldError
 from server.world.director import DirectorConfig, DirectorResult, WorldDirector
 from server.world.tasks import event
-from server.world import economy
+from server.world import chronicle, economy
 from server.world.director_execution import execute as execute_director
 from server.world.director_context import build as build_director_context
 
@@ -33,12 +33,13 @@ CREATE INDEX IF NOT EXISTS director_focus_by_status ON director_focus(world_id, 
 
 
 class WorldTurns:
-    def __init__(self, agents, config, provider=None):
+    def __init__(self, agents, config, provider=None, chapter_writer=None):
+        self.chapter_writer = chapter_writer
         self.agents, self.store = agents, agents.store
         self.config, self.provider = config, provider
         self.last_mode = "fallback"
         with self.store.connection() as connection:
-            connection.executescript(SCHEMA)
+            connection.executescript(SCHEMA + chronicle.SCHEMA)
 
     def runtime(self, connection, world_id):
         self.store.world_row(connection, world_id)
@@ -84,6 +85,11 @@ class WorldTurns:
             major_event = body.reason == "major_event" and bool(triggers)
             due = config.enabled and (major_event or state.tick - runtime["last_director_tick"] >= config.interval_ticks)
             director_context = build_director_context(connection, state, config, triggers) if due and self.provider else None
+            evidence = chronicle.candidates(connection, state) if self.chapter_writer and config.enabled else []
+            entities = {entity for event in evidence for entity in (event.actor_id, event.target_id) if entity}
+            names = {actor.id: actor.name for actor in state.actors if actor.id in entities}
+            names.update({site.id: {'herb': '药草采集点', 'wood': '木材采集点', 'iron': '铁矿采集点'}.get(site.kind, site.kind)
+                          for site in state.sites if site.id in entities})
             eligible = sorted((actor for actor in state.actors if actor.kind == "npc"
                                and actor.alive and not actor.task_id and actor.behavior != "attacking"),
                               key=lambda actor: actor.id)
@@ -123,7 +129,18 @@ class WorldTurns:
                     return DirectorResult(world_id=world_id, expected_world_version=body.expected_world_version,
                         mode="fallback", status="unavailable", reason_code="REQUEST_BUDGET_EXHAUSTED")
 
-            (decision, mode), result = await asyncio.gather(plan(), assess_with_budget())
+            async def write_chapter():
+                if not evidence:
+                    return None
+                async def invoke():
+                    async with self.agents.gateway.semaphore:
+                        return chronicle.ChapterDraft.model_validate(await self.chapter_writer(evidence, names))
+                try:
+                    return await asyncio.wait_for(invoke(), timeout=10)
+                except Exception:
+                    return None
+
+            (decision, mode), result, draft = await asyncio.gather(plan(), assess_with_budget(), write_chapter())
             if result.status != "skipped":
                 self.last_mode = result.mode
             with self.store.connection(write=True) as connection:
@@ -158,7 +175,7 @@ class WorldTurns:
                 applied = []
                 if result.status != "skipped":
                     emitted.append(event(state, "director_assessed", seq + len(emitted), None, None,
-                        {"mode": result.mode, "status": result.status, "reason_code": result.reason_code,
+                        {"mode": result.mode, "status": result.status, "reason_code": result.reason_code, "issues": result.issues,
                          "source_type": "interpretation",
                          "summary": result.decision.summary if result.decision else ""},
                         result.decision.source_event_ids if result.decision else [], []))
@@ -196,6 +213,7 @@ class WorldTurns:
                                        (world_id, "director_" + uuid4().hex, json.dumps(record, ensure_ascii=False)))
                 emitted.append(event(state, "world_advanced", seq + len(emitted), None, None,
                     {"reason": body.reason, "director_status": result.status}, body.trigger_event_ids, []))
+                chapter = chronicle.record(connection, state, evidence, draft) if draft else None
                 economy.reconcile(connection, state, emitted)
                 state.world_version += 1
                 state = StateView.model_validate(state.model_dump())
@@ -203,10 +221,10 @@ class WorldTurns:
                 for value in emitted:
                     self.store.append_event(connection, world_id, value)
                 output = response(body.request_id, state, {"tick": state.tick,
-                    "decision_summaries": summaries,
+                    "decision_summaries": summaries, "chapter": chapter,
                     "tasks": [task.model_dump(mode="json") for task in state.tasks if task.id in task_ids],
                     "events": [value.model_dump(mode="json") for value in emitted if state.player_id in value.witness_ids],
-                    "director": {"mode": result.mode, "status": result.status, "reason_code": result.reason_code,
+                    "director": {"mode": result.mode, "status": result.status, "reason_code": result.reason_code, "issues": result.issues,
                                  "accepted_proposals": sum(entry["accepted"] for entry in applied)},
                     "state": state.model_dump(mode="json")})
                 self.store.remember(connection, scope, body, output)

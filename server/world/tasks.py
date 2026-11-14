@@ -165,7 +165,7 @@ def apply_task_report(connection, state, payload, region, seq):
     witnesses = [value.id for value in state.actors if value.alive and value.region_id == actor.region_id
                  and math.hypot(value.tile.x - actor.tile.x, value.tile.y - actor.tile.y) <= 6]
     finished = event(state, "task_" + report.status, seq, actor.id, task.target_id,
-                     {"task_id": task.id, "failure_code": report.failure_code}, task.source_event_ids, witnesses)
+                     {"task_id": task.id, "action": effect["action"], "failure_code": report.failure_code}, task.source_event_ids, witnesses)
     events = [finished]
     if report.status == "succeeded" and effect["action"] == "GATHER":
         site = next((value for value in state.sites if value.id == effect["site_id"]), None)
@@ -174,7 +174,7 @@ def apply_task_report(connection, state, payload, region, seq):
         site.remaining -= 1
         item_id = "item_" + uuid4().hex
         gathered = event(state, "resource_gathered", seq + 1, actor.id, site.id,
-                         {"item_id": item_id, "quantity": 1, "remaining": site.remaining}, [finished.id], witnesses)
+                         {"item_id": item_id, "material_id": site.kind, "quantity": 1, "remaining": site.remaining}, [finished.id], witnesses)
         state.items.append(ItemState(id=item_id, name=site.kind, base_type="material", quality="common",
             material_id=site.kind, owner_id=actor.id, origin_event_ids=[gathered.id],
             stats=ItemStats(damage=0, cooldown_s=1, armor=0)))

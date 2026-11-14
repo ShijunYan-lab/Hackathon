@@ -225,3 +225,13 @@ PICKUP/EQUIP/GIVE 已接现有 commands，校验存活、距离和归属；装�
 - 长期运行复查：不再为跳过的导演回合写评估行，NPC 回退空转不创建决策记录；内部回合和审计记录不再派生世界记忆。剧情和导演调试响应有限额。导演请求只携带未完成任务，长线索取首条和最近七条来源，完整来源仍在库内。
 - 仍增长的表包括有效事件、完成的任务、请求去重与手动存档。旧存档和正式审计保留。长期归档与分段快照需要独立验证去重、旧分支、运输评审来源和回退，再实施。
 - 文件：server/world/{advance,agent_runtime,director_context,model_gateway}.py、server/storage/knowledge.py、server/main.py、server/start_world_model.ps1、server/api/director_smoke.py、Demo 页面、WORLD_ACTIONS_CONTRACT.md 与 tests/test_advance.py。Python 3.11 测试 112 项通过，Node Demo 回归通过。
+
+## 步骤 06、08、09、16 · 玩家章节与自动推进
+
+新增章节存储、可分页玩家章节接口、DeepSeek 写作入口和导演历史回忆；存档分支保留章节与来源。按亲历转折事件生成，不把全局导演私有摘要交给玩家或 NPC。回忆优先留开篇并按人物、重要性和时间选择章节，相关旧事件可以跨过近期窗口。章节是解释文本，事件用于裁决。
+
+Demo 默认每 20 秒自动推进，报告命中后提前评估，可关闭自动并手动调试。正式 Godot 定时器仍由 D 组装。涉及 server/world/{chronicle,advance,director,director_context,model_gateway,tasks}.py、server/main.py、server/storage/snapshots.py、Demo 和测试。
+
+真实 DeepSeek 验证：同种子模拟命中与药草采集写出不同章节；最终采集正文与实际材料及数量相符。一次命中导演评估接受 1 条跟进。章回分页、老证据保留、玩家知情约束、重复请求、加载分支及自动定时器暂停均有回归检查。114 项 Python 测试和 Node Demo 回归通过。
+
+导演先独立校验摘要和每条建议。部分有效时记录 PARTIAL_DECISION，保留有效内容；正常无行动记录 NO_ACTION_PROPOSED。无效 ID、地点、目标或格式显示对应 issues。旧审计中的 INVALID_DECISION 原样保留。

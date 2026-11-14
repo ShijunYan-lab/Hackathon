@@ -194,3 +194,49 @@ def test_turn_plan_creates_task_without_premature_resource_reward(tmp_path):
         assert report['ok']
         assert len(report['data']['state']['items']) == original_items + 1
         assert report['data']['state']['sites'][0]['remaining'] == 4
+
+def test_player_chapters_recall_old_evidence_and_survive_branch(tmp_path):
+    from server.world.tasks import event
+
+    seen = []
+
+    async def writer(evidence, names):
+        return {'title': '受击之后', 'narrative': '旅人的行动改变了集市的气氛。',
+                'source_event_ids': [entry.id for entry in evidence]}
+
+    async def director(context):
+        seen.append(context)
+        return DirectorDecision()
+
+    app = create_app(tmp_path / 'story.sqlite3', chapter_writer=writer, director_provider=director,
+                     director_config=DirectorConfig(interval_ticks=1, event_budget=16))
+    with TestClient(app) as client:
+        path, state = new(client)
+        other, _ = new(client)
+        store = app.state.store
+        snapshot = store.state(state['world_id'])
+        player, npc = snapshot.actors[:2]
+        visible = event(snapshot, 'hit_applied', 2, player.id, npc.id, {}, [], [player.id, npc.id])
+        private = event(snapshot, 'hit_applied', 3, player.id, npc.id, {}, [], [npc.id])
+        with store.connection(write=True) as conn:
+            store.append_event(conn, snapshot.world_id, visible)
+            store.append_event(conn, snapshot.world_id, private)
+        body = request(state, reason='idle_timer')
+        first = client.post(path + '/advance', json=body).json()
+        chapter = first['data']['chapter']
+        assert chapter['source_event_ids'] == [visible.id]
+        assert client.post(path + '/advance', json=body).json() == first
+        assert client.get(other + '/story/chapters').json()['data']['chapters'] == []
+        with store.connection(write=True) as conn:
+            for seq in range(10, 40):
+                store.append_event(conn, snapshot.world_id, event(
+                    snapshot, 'speech', seq, player.id, npc.id, {}, [], [player.id, npc.id]))
+        second = client.post(path + '/advance', json=request(first['data']['state'])).json()['data']
+        assert second['chapter'] is None
+        assert seen[-1].chapters == [chapter]
+        assert visible.id in {entry.id for entry in seen[-1].events}
+        saved = client.post(path + '/saves', json={'request_id': uuid4().hex, 'label': '第一章',
+            'expected_world_version': second['state']['world_version']}).json()['data']
+        branch = client.post('/v1/saves/' + saved['save_id'] + '/load',
+                             json={'request_id': uuid4().hex}).json()['data']['state']
+        assert client.get('/v1/worlds/' + branch['world_id'] + '/story/chapters').json()['data']['chapters'] == [chapter]
