@@ -1,10 +1,22 @@
 extends SceneTree
 var refresh_elapsed := 0.0
+var instance_guard := TCPServer.new()
 
 func _initialize() -> void:
     call_deferred("start_demo")
 
 func start_demo() -> void:
+    var world_id := ""
+    for arg in OS.get_cmdline_user_args():
+        if arg.begins_with("--world="):
+            world_id = arg.trim_prefix("--world=")
+    # Hold a local socket for the lifetime of this world's client. No network data
+    # is exchanged; bind is atomic, unlike checking a PID file before launch.
+    var port := 20000 + (world_id.hash() % 40000)
+    if instance_guard.listen(port, "127.0.0.1") != OK:
+        push_error("This experimental world already has an open game window.")
+        quit(2)
+        return
     var scene = load("res://main.tscn").instantiate()
     root.add_child(scene)
     current_scene = scene

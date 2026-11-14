@@ -23,6 +23,14 @@ if ($Replay -or -not (Test-Path 'runtime/generative-session.json')) {
     & runtime/venv311/Scripts/python.exe -m server.api.generative_live_demo --godot $GodotPath
 } else {
     $session=Get-Content runtime/generative-session.json -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existing = Get-CimInstance Win32_Process | Where-Object {
+        $_.Name -like 'Godot*' -and $_.CommandLine -like '*generative_demo.gd*' -and
+        $_.CommandLine -like ('*--world=' + $session.world_id + '*')
+    }
+    if ($existing) {
+        Write-Host 'This world is already open. Use the existing experimental game window.'
+        return
+    }
     Start-Process $GodotPath -ArgumentList @('--path',('"'+$root+'/game"'),'--script',('"'+$root+'/server/api/generative_demo.gd"'),'--','--no-autostart','--fresh','--server=http://127.0.0.1:8781',('--world='+$session.world_id)) -WorkingDirectory $root | Out-Null
     Write-Host 'Opened experimental world. E: dialogue; Tab: items and offers; J: chronicle.'
 }

@@ -1,5 +1,13 @@
 # C 岗完整任务与进度总表
 
+## 实验窗口重复启动导致持续冲突：已修复
+
+2026-11-14 实查发现自动演示窗口与交互窗口同时连接同一 world_id；旧窗口持续提交位置/任务，引发 VERSION_CONFLICT，被现有 D 界面统一显示为 fallback。已停止确认属于本次自动演示的旧进程，保留用户交互窗口和存档。
+
+实验启动器检测同世界现有 Godot 进程，重复启动直接返回；实验 GDScript 入口持有按 world_id 映射的本地监听端口作为原子单实例保护（不传输网络数据）。端口碰撞或被其他程序占用也会拒绝启动，不会终止其他进程。未修改 D 界面与后端版本校验。
+
+验证：Godot --check-only 通过；实际启动脚本确认复用已有窗口；独立测试标识下启动两个 headless 客户端，第二个退出码 2，第一个仍运行。只终止测试进程。尚未代替用户在当前窗口重发对话，未宣称模型不会再超时。D 后续应把版本冲突与模型 fallback 分别展示。
+
 ## 最新交付：真实 LLM + Godot 生成与反馈演示
 
 已在 `codex/c-journal-trade` 完成真实调用验收，未合入 main。操作入口见 [GENERATIVE_DEMO.md](GENERATIVE_DEMO.md)。运行 `powershell -NoProfile -ExecutionPolicy Bypass -File server/start_generative_demo.ps1` 打开本机已验证的实验世界；加 `-Replay` 创建新世界重跑。8781 实验端口，原服务不受影响。
