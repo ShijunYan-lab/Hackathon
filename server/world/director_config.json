@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "interval_ticks": 3,
+  "timeout_s": 9,
+  "npc_alive_limit": 10,
+  "max_proposals": 2,
+  "locations": []
+}

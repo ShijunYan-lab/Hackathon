@@ -1,0 +1,5 @@
+{
+  "melee_range_tiles": 2.0,
+  "witness_range_tiles": 6.0,
+  "player_material_loss_fraction": 0.5
+}
