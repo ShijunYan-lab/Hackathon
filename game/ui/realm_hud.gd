@@ -76,7 +76,7 @@ func draw_hud()->void:
 		if world.near_npc and not world.near_npc.get_meta("speech_active",false):
 			var npc:Node2D=world.near_npc
 			var screen:Vector2=npc.get_global_transform_with_canvas().origin
-			var name_text:String=npc.data.name+" · "+npc.data.role
+			var name_text:String="E  \u4ea4\u8c08"
 			var width:=font.get_string_size(name_text,HORIZONTAL_ALIGNMENT_LEFT,-1,11).x+20
 			panel(Rect2(screen+Vector2(-width/2,-89),Vector2(width,22)))
 			text(screen+Vector2(-width/2+10,-74),name_text,11)

@@ -72,7 +72,7 @@ class DirectorContext(DTO):
     chapters: list[dict] = Field(default_factory=list)
     history_scope: str = 'full'
     execution_rules: dict = Field(default_factory=dict)
-    allowed_proposals: list[Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION"]]
+    allowed_proposals: list[Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION", "ERRAND"]]
 
     @model_validator(mode="after")
     def check_sources(self):
@@ -95,13 +95,14 @@ class DirectorContext(DTO):
 
 
 class DirectorProposal(DTO):
-    kind: Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION"]
+    kind: Literal["FOLLOW_UP", "RESOURCE_NEED", "MIGRATION", "ERRAND"]
     source_event_ids: list[str] = Field(min_length=1, max_length=16)
     reason_summary: str = Field(min_length=1, max_length=300)
     target_id: str | None = None
     location_id: str | None = None
     resource: str = 'iron'
     quantity: int = Field(default=1, ge=1, le=20)
+    quest_kind: Literal['delivery','rescue'] = 'delivery'
     npc_name: str = Field(default='迁入旅人', min_length=1, max_length=30)
 
 
@@ -141,6 +142,9 @@ def proposal_issue(context, proposal, config, event_ids):
             return 'RESOURCE_LIMIT'
         if not any(org.id == proposal.target_id and org.status == 'active' for org in context.state.organizations):
             return 'ORGANIZATION_INVALID'
+    elif proposal.kind == 'ERRAND':
+        if not any(a.id==proposal.target_id and a.kind=='npc' and a.alive for a in context.state.actors):
+            return 'ERRAND_ISSUER_INVALID'
     else:
         if proposal.target_id is not None:
             return 'MIGRATION_TARGET_INVALID'

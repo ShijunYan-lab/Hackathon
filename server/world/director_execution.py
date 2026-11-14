@@ -18,7 +18,10 @@ def execute(connection, state, proposal, config, region, seq):
     candidate = state.model_copy(deep=True)
     connection.execute('SAVEPOINT director_execution')
     try:
-        if proposal.kind == 'RESOURCE_NEED':
+        if proposal.kind == 'ERRAND':
+            from server.world.living_world import director_errand
+            actual=director_errand(connection,candidate,proposal,region,seq)
+        elif proposal.kind == 'RESOURCE_NEED':
             org = organization(candidate, proposal.target_id)
             if proposal.resource not in config.resource_limits or proposal.quantity > config.resource_limits[proposal.resource]:
                 raise WorldError('RESOURCE_NOT_SUPPORTED', '资源或需求量超出配置。')
@@ -75,6 +78,13 @@ def execute(connection, state, proposal, config, region, seq):
             npc.equipped_item_id, npc.armor = weapon.id, weapon.stats.armor
             candidate.items.append(weapon)
             initialize(connection, candidate)
+            from server.world import living_world as life
+            meta=life.read(connection,state.world_id)
+            if meta:
+                npc.appearance_key='renard'
+                npc.tile=life.free_tile(region,npc.tile.x,npc.tile.y,[a.tile for a in candidate.actors if a.id!=npc.id and a.alive])
+                meta['people'][npc.id]={**life.persona(candidate,npc),'dynamic':True}
+                life.write(connection,state.world_id,meta)
             connection.execute('UPDATE worlds SET rng_state=? WHERE id=?', (json.dumps(rng.getstate()), state.world_id))
             connection.execute('INSERT INTO migration_sources VALUES (?, ?, ?)', (state.world_id, source, npc_id))
         else:

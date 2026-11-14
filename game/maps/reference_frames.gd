@@ -52,5 +52,4 @@ static func draw_actor(actor:Node2D,hp:int,max_hp:int,alive:bool,label:String)->
 	if alive and hp<max_hp:
 		actor.draw_rect(Rect2(-18,-67,36,4),Color("211c21"))
 		actor.draw_rect(Rect2(-17,-66,34.0*hp/max_hp,2),Color("b68164"))
-	var width:=font.get_string_size(label,HORIZONTAL_ALIGNMENT_LEFT,-1,10).x
-	actor.draw_string(font,Vector2(-width/2,-72),label,HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("e4d2ad"))
+	# Names are learned through conversation; never draw a world-space identity label.

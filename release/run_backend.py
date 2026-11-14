@@ -15,7 +15,7 @@ from shared.protocol import Tile
 
 def make_app(db_path=None):
     load_dotenv(ROOT / '.env', override=False)
-    return create_app(db_path=db_path or ROOT / "runtime/overworld.sqlite3",
+    return create_app(db_path=db_path or ROOT / "runtime/playable-r6.sqlite3",
         agent_timeout_s=min(65, max(1, float(os.getenv('LLM_TIMEOUT_SECONDS', '30')) * 2 + 3)),
         regions_path=ROOT / "game/maps/backend_world.json", region_id="overworld",
         director_config=DirectorConfig.from_file(ROOT / "game/maps/director_locations.json"),

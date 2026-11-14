@@ -70,5 +70,6 @@ def build(connection, state, config, triggers):
             'npc_alive_limit': config.npc_alive_limit,
             'FOLLOW_UP': 'Only a living NPC target can be queued for planning; this does not execute its actions.',
             'RESOURCE_NEED': 'One open need per active organization. quantity means desired stock, not free resources.',
+            'ERRAND': 'Only living merchant target_id with stock and a 5-gold wage; quest_kind delivery or rescue. Real actors execute validated tasks. Maximum 5 active errands.',
             'MIGRATION': 'Requires an unused NPC death or unresolved resource_need_created event and a configured migration_entry. Never revive old identities.'},
-        allowed_proposals=['FOLLOW_UP', 'RESOURCE_NEED', 'MIGRATION'])
+        allowed_proposals=['FOLLOW_UP', 'RESOURCE_NEED', 'MIGRATION'] + (['ERRAND'] if state.containers else []))

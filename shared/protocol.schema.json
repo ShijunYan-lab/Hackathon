@@ -25,6 +25,15 @@
         "minLength": 1,
         "title": "Player Name",
         "type": "string"
+      },
+      "appearance": {
+        "default": "male",
+        "enum": [
+          "male",
+          "female"
+        ],
+        "title": "Appearance",
+        "type": "string"
       }
     },
     "required": [
@@ -160,6 +169,7 @@
         "items": {
           "type": "string"
         },
+        "maxItems": 16,
         "title": "Trigger Event Ids",
         "type": "array"
       }
@@ -300,6 +310,13 @@
             "default": null,
             "title": "Equipped Item Id"
           },
+          "equipped_slots": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Equipped Slots",
+            "type": "object"
+          },
           "behavior": {
             "default": "idle",
             "enum": [
@@ -355,8 +372,13 @@
             "enum": [
               "sword",
               "axe",
+              "hammer",
+              "bow",
+              "crossbow",
+              "staff",
               "material",
-              "consumable"
+              "consumable",
+              "armor"
             ],
             "title": "Base Type",
             "type": "string"
@@ -372,6 +394,11 @@
           },
           "material_id": {
             "title": "Material Id",
+            "type": "string"
+          },
+          "equipment_slot": {
+            "default": "",
+            "title": "Equipment Slot",
             "type": "string"
           },
           "affixes": {
@@ -788,6 +815,38 @@
         },
         "title": "Sites",
         "type": "array"
+      },
+      "appearance": {
+        "default": "male",
+        "enum": [
+          "male",
+          "female"
+        ],
+        "title": "Appearance",
+        "type": "string"
+      },
+      "containers": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Containers",
+        "type": "array"
+      },
+      "quests": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Quests",
+        "type": "array"
+      },
+      "known_npc_ids": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Known Npc Ids",
+        "type": "array"
       }
     },
     "required": [
@@ -825,7 +884,12 @@
               "FLEE",
               "CRAFT",
               "JOIN_ORG",
-              "LEAVE_ORG"
+              "LEAVE_ORG",
+              "OPEN_TRADE",
+              "BARGAIN",
+              "ASK_WORK",
+              "ACCEPT_QUEST",
+              "GUIDE_HOME"
             ],
             "title": "Action",
             "type": "string"
@@ -909,6 +973,18 @@
     },
     "additionalProperties": false,
     "properties": {
+      "social_signal": {
+        "default": "neutral",
+        "enum": [
+          "neutral",
+          "insult",
+          "threat",
+          "apology",
+          "thanks"
+        ],
+        "title": "Social Signal",
+        "type": "string"
+      },
       "reply": {
         "default": "",
         "maxLength": 500,
@@ -1051,8 +1127,13 @@
             "enum": [
               "sword",
               "axe",
+              "hammer",
+              "bow",
+              "crossbow",
+              "staff",
               "material",
-              "consumable"
+              "consumable",
+              "armor"
             ],
             "title": "Base Type",
             "type": "string"
@@ -1068,6 +1149,11 @@
           },
           "material_id": {
             "title": "Material Id",
+            "type": "string"
+          },
+          "equipment_slot": {
+            "default": "",
+            "title": "Equipment Slot",
             "type": "string"
           },
           "affixes": {
@@ -1253,7 +1339,12 @@
             "FLEE",
             "CRAFT",
             "JOIN_ORG",
-            "LEAVE_ORG"
+            "LEAVE_ORG",
+            "OPEN_TRADE",
+            "BARGAIN",
+            "ASK_WORK",
+            "ACCEPT_QUEST",
+            "GUIDE_HOME"
           ],
           "type": "string"
         },

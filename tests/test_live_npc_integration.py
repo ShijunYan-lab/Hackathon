@@ -54,6 +54,11 @@ def test_hit_protests_schedules_defense_and_rejects_fake_success(tmp_path):
     app=make_app(tmp_path/'combat.sqlite3')
     with TestClient(app) as client:
         state=new(client); player,npc=state['actors'][:2]
+        from server.world import living_world as life
+        with app.state.store.connection(write=True) as connection:
+            meta=life.read(connection,state['world_id'])
+            meta['people'][npc['id']]['personality']['courage']=.95
+            life.write(connection,state['world_id'],meta)
         result=cmd(client,state,'HIT',{'attack_id':'first','attacker_id':player['id'],'target_id':npc['id'],
             'weapon_id':player['equipped_item_id'],'region_id':'overworld',
             'attacker_tile':{'x':120.5,'y':143.5},'target_tile':{'x':121.5,'y':143.5}}).json()
@@ -84,16 +89,16 @@ def test_existing_spawn_cluster_repairs_once_without_reviving_dead_npc(tmp_path)
     with TestClient(app) as client:
         state=new(client)
         model=app.state.store.state(state['world_id'])
-        for actor in model.actors[1:]: actor.tile=model.actors[0].tile.model_copy()
-        model.actors[-1]=model.actors[-1].model_copy(update={'alive':False,'hp':0})
+        for actor in model.actors[1:16]: actor.tile=model.actors[0].tile.model_copy()
+        model.actors[15]=model.actors[15].model_copy(update={'alive':False,'hp':0})
         with app.state.store.connection(write=True) as connection:
             region=json.loads(app.state.store.world_row(connection,state['world_id'])['region'])
             region.pop('reactive_npcs',None)
             connection.execute('UPDATE worlds SET state=?,region=? WHERE id=?',(model.model_dump_json(),json.dumps(region),model.world_id))
     with TestClient(make_app(db)) as client:
         repaired=client.get('/v1/worlds/'+state['world_id']+'/state').json()['data']['state']
-        assert not repaired['actors'][-1]['alive']
-        assert len({(a['tile']['x'],a['tile']['y']) for a in repaired['actors'][1:-1]})==14
+        assert not repaired['actors'][15]['alive']
+        assert len({(a['tile']['x'],a['tile']['y']) for a in repaired['actors'][1:15]})==14
     with TestClient(make_app(db)) as client:
         assert client.get('/v1/worlds/'+state['world_id']+'/state').json()['data']['state']==repaired
 

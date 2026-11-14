@@ -34,11 +34,17 @@ var model_mode:="未调用"
 var boot_started:=false
 var autostart:=true
 var persistent_session:=true
+var play_ui
+var container_nodes: Dictionary = {}
+var debug_ui: bool = false
+var autosave_timer: float = 0.0
 
 func _ready()->void:
+	get_tree().auto_accept_quit = false
 	for arg in OS.get_cmdline_user_args():
 		if arg=="--no-autostart": autostart=false
 		if arg=="--fresh": persistent_session=false
+		if arg=="--debug-ui": debug_ui=true
 	player=PlayerScene.instantiate()
 	player.set_script(PlayerAdapter)
 	player.position=Layout.SPAWN
@@ -73,6 +79,9 @@ func _ready()->void:
 				session_world=str(config.get_value("session","world",""))
 				save_id=str(config.get_value("session","save",""))
 				ordinary_world=str(config.get_value("session","ordinary_world",session_world))
+	play_ui=preload("res://ui/play_windows.gd").new()
+	play_ui.world=self
+	add_child(play_ui)
 	api.call_api("health","/health")
 
 func remember_session()->void:
@@ -87,7 +96,8 @@ func remember_session()->void:
 func _process(delta:float)->void:
 	if not is_instance_valid(hud): return
 	var blocked:bool=state.is_empty() or not api.connected or api.suspended or evaluation_transition
-	player.set_controls_locked(blocked or hud.dialog_open or hud.map_open or hud.panel_open or not evaluation.is_empty())
+	var menu_blocked: bool = is_instance_valid(play_ui) and play_ui.modal_open
+	player.set_controls_locked(blocked or menu_blocked or hud.dialog_open or hud.map_open or hud.panel_open or not evaluation.is_empty())
 	player.visible=evaluation.is_empty() and not evaluation_transition
 	player.set_meta("observer",not player.visible)
 	if not player.visible:
@@ -101,7 +111,7 @@ func _process(delta:float)->void:
 	for id in actors:
 		var npc=actors[id]
 		if npc==player: continue
-		npc.set_controls_locked(blocked or (not evaluation.is_empty() and not evaluation_running) or (hud.dialog_open and hud.current_npc==npc))
+		npc.set_controls_locked(blocked or menu_blocked or hud.panel_open or hud.dialog_open or (not evaluation.is_empty() and not evaluation_running))
 		var d:float=player.position.distance_to(npc.position)
 		if npc.alive and npc.actor_kind=="npc" and d<distance:
 			distance=d
@@ -116,7 +126,10 @@ func _process(delta:float)->void:
 	for tree in canopies:
 		var diff:Vector2=player.position-tree.position
 		tree.get_node("Art").modulate.a=0.42 if absf(diff.x)<47 and diff.y<0 and diff.y> -133 else 1.0
-	if blocked: return
+	for projectile in get_tree().get_nodes_in_group("world_projectiles"):
+		projectile.set_physics_process(not (blocked or menu_blocked or hud.dialog_open or hud.panel_open))
+	if blocked or menu_blocked: return
+	autosave_timer+=delta
 	checkpoint_timer+=delta
 	advance_timer+=delta
 	evaluation_timer+=delta
@@ -129,9 +142,12 @@ func _process(delta:float)->void:
 		var learner=actors.get(str(evaluation.learner_id))
 		if learner:
 			player.camera.global_position=learner.global_position
-	elif api.idle() and evaluation.is_empty() and advance_timer>=30 and not hud.dialog_open and not actors.values().any(func(a): return a!=player and a.current_task_id!=""):
+	elif api.idle() and evaluation.is_empty() and autosave_timer>=60 and not hud.dialog_open and not hud.panel_open:
+		autosave_timer=0
+		save_game()
+	elif api.idle() and evaluation.is_empty() and advance_timer>=12 and not hud.dialog_open and not hud.panel_open:
 		advance_timer=0
-		api.call_api("advance","/v1/worlds/{world}/advance",{"reason":"idle_timer","trigger_event_ids":[]},true)
+		api.call_api("advance","/v1/worlds/{world}/heartbeat",{"reason":"idle_timer","trigger_event_ids":[]},true)
 
 func checkpoint(force:bool=false)->void:
 	if state.is_empty(): return
@@ -197,7 +213,9 @@ func apply_state(next:Dictionary,operation:String)->void:
 		if fresh or switched: actor.position=Vector2(value.tile.x,value.tile.y)*32
 		actor.apply_actor_state(value)
 		actors[id]=actor
-		var slots:={"melee":"","ranged":""}
+		var slots: Dictionary = {}
+		for slot in actor.WEAPON_CATALOG.EQUIPMENT_SLOTS: slots[slot] = ""
+		for slot in value.get("equipped_slots", {}): slots[slot] = value.equipped_slots[slot]
 		for item in next.items:
 			if item.id==value.equipped_item_id:
 				var group:String=actor.WEAPON_CATALOG.group_for_type(str(item.base_type))
@@ -221,6 +239,11 @@ func apply_state(next:Dictionary,operation:String)->void:
 			actor.reported.erase(str(task.id))
 		if actor and actor!=player and task.status in ["pending","running"]: actor.execute_task(task)
 	_sync_loot()
+	_sync_containers()
+	var female: bool = str(next.get("appearance", "male")) == "female"
+	if player.female != female:
+		player.female = female
+		player._load_visual_frames()
 	if is_instance_valid(hud.current_npc) and (not hud.current_npc.alive or hud.current_npc.active_task.get("kind")=="ATTACK"): hud.close_dialogue()
 	if switched:
 		player.camera.position=Vector2.ZERO
@@ -258,6 +281,17 @@ func interact()->void:
 			checkpoint(true)
 			api.command("PICKUP",{"actor_id":player.entity_id,"item_id":node.item.id})
 			return
+	var nearest_box = null
+	var nearest_distance: float = 56.0
+	for box in container_nodes.values():
+		var d: float = player.position.distance_to(box.position)
+		if d < nearest_distance:
+			nearest_box = box
+			nearest_distance = d
+	if nearest_box != null and nearest_box.data.get("kind") != "merchant" and (near_npc == null or nearest_distance < player.position.distance_to(near_npc.position)):
+		checkpoint(true)
+		api.call_api("container", "/v1/worlds/{world}/containers/" + str(nearest_box.data.id))
+		return
 	if near_npc:
 		if near_npc.active_task.get("kind")=="ATTACK":
 			hud.notice("对方正在自卫；请先停手并拉开距离。")
@@ -265,6 +299,8 @@ func interact()->void:
 		hud.show_npc(near_npc)
 		checkpoint(true)
 		api.call_api("history","/v1/worlds/{world}/dialogue/"+str(near_npc.entity_id)+"/history")
+	elif nearest_box != null:
+		hud.notice("\u8fd9\u662f\u5546\u4eba\u7684\u8d27\u7bb1\uff0c\u8bf7\u4e0e\u4ed6\u4ea4\u8c08\u67e5\u770b\u5546\u54c1\u3002")
 	elif interactable: hud.show_place(interactable)
 
 func save_game()->void:
@@ -308,9 +344,11 @@ func _completed(operation:String,data:Dictionary)->void:
 				api.connected=false
 				hud.notice("8765 端口运行的是旧地图服务。请启动 release/run_backend.py。",30)
 				return
-			if state.is_empty():
-				if session_world.is_empty(): api.call_api("create","/v1/worlds",{"seed":int(Time.get_unix_time_from_system())%2147483647,"player_name":"旅人"},false,true)
-				else: api.call_api("resume","/v1/worlds/"+session_world+"/state",{},false,true)
+			if str(data.get("play_revision", "")) != "r6":
+				play_ui.notice("\u5f53\u524d 8765 \u7aef\u53e3\u662f\u65e7\u7248\u670d\u52a1\uff0c\u8bf7\u505c\u6b62\u65e7\u7ec8\u7aef\u5e76\u542f\u52a8\u672c\u7248\u540e\u7aef\u3002")
+				api.connected = false
+				return
+			api.call_api("model_status", "/v1/local/model")
 		"resume","refresh":
 			if data.get("evaluation_active",false):
 				var recovery:String=str(data.get("recovery_world_id", "")) if data.get("recovery_world_id")!=null else ""
@@ -323,6 +361,9 @@ func _completed(operation:String,data:Dictionary)->void:
 		"dialogue":
 			if is_instance_valid(hud.current_npc) and str(data.get("npc_id",hud.current_npc.entity_id))==hud.current_npc.entity_id:
 				hud.receive_reply(str(data.get("reply","")),model_mode)
+			for action in data.get("ui_actions", []):
+				if action.kind == "open_trade": api.call_api("shop", "/v1/worlds/{world}/shops/" + str(action.merchant_id))
+				elif action.kind == "show_quests": play_ui.request_journal()
 		"history": hud.receive_history(data)
 		"economy":
 			economy=data
@@ -342,9 +383,13 @@ func _completed(operation:String,data:Dictionary)->void:
 			evaluation_report=data
 			hud.show_evaluation_report(data)
 		"evaluation_profile": hud.show_profile(data)
-		"EQUIP","PICKUP","GIVE","offer","craft","ACCEPT_OFFER","supply":
+		"EQUIP","PICKUP","GIVE","offer","craft","ACCEPT_OFFER","supply","consume":
 			hud.notice("已确认。" if operation!="offer" else "提议已送达，等待对方决定。")
 			api.call_api("economy","/v1/worlds/{world}/economy")
+	if operation == "create" and data.has("save_id"):
+		save_id = str(data.save_id)
+		remember_session()
+	if is_instance_valid(play_ui): play_ui.complete(operation, data)
 	for event in data.get("events",[]):
 		if event.type in ["npc_protested","npc_speech"] and operation!="dialogue":
 			var speaker=actors.get(str(event.actor_id))
@@ -370,6 +415,9 @@ func stop_evaluation_actions()->void:
 func _failed(operation:String,message:String)->void:
 	last_positions=""
 	hud.notice(message,12)
+	if is_instance_valid(play_ui):
+		play_ui.notice(message)
+		play_ui.after_save = ""
 	if operation.begins_with("evaluation_"): evaluation_transition=false
 	if message.contains("EVALUATION_FROZEN") and evaluation.is_empty():
 		api.call_api("resume","/v1/worlds/{world}/state")
@@ -388,7 +436,14 @@ func _failed(operation:String,message:String)->void:
 		hud.notice("旧世界无法读取；F9 重试，或 F8 开始新旅途。原存档仍保留。",30)
 
 func _unhandled_input(event:InputEvent)->void:
+	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_F9:
+		api.retry()
+		return
+	if is_instance_valid(play_ui) and play_ui.modal_open: return
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_ESCAPE and not hud.dialog_open and not hud.panel_open and not hud.map_open:
+			play_ui.open_pause()
+			return
 		match event.physical_keycode:
 			KEY_F9: api.retry()
 			KEY_F8:
@@ -397,13 +452,47 @@ func _unhandled_input(event:InputEvent)->void:
 			KEY_F6: save_game()
 			KEY_F7: load_game()
 			KEY_TAB: hud.toggle_inventory()
-			KEY_J: api.call_api("story","/v1/worlds/{world}/story/chapters")
-			KEY_F2: api.call_api("story","/v1/worlds/{world}/story/chapters")
-			KEY_F3: hud.show_world_status()
+			KEY_J: play_ui.request_journal()
+			KEY_F2: play_ui.request_journal()
+			KEY_F3:
+				if debug_ui: hud.show_world_status()
 			KEY_F4: hud.open_evaluation()
 			KEY_ESCAPE: hud.close_panel()
 	if hud.dialog_open or hud.panel_open: return
 	if event.is_action_pressed("toggle_map"): hud.map_open=not hud.map_open
 	elif event.is_action_pressed("interact"): interact()
-	elif event.is_action_pressed("appearance") and not player.controls_locked: player.switch_appearance()
+	elif event.is_action_pressed("appearance") and debug_ui and not player.controls_locked: player.switch_appearance()
 	elif event.is_action_pressed("ui_cancel"): hud.map_open=false
+
+
+func npc_caption(npc) -> String:
+	if not is_instance_valid(npc): return "\u65c5\u4eba"
+	return str(npc.display_name) if str(npc.entity_id) in state.get("known_npc_ids", []) else "\u964c\u751f\u65c5\u4eba"
+
+func _sync_containers() -> void:
+	var present: Dictionary = {}
+	for box in state.get("containers", []):
+		present[box.id] = true
+		if not container_nodes.has(box.id):
+			var new_node = preload("res://maps/world_container.gd").new()
+			$World/Entities.add_child(new_node)
+			container_nodes[box.id] = new_node
+		var node = container_nodes[box.id]
+		node.data = box
+		node.position = Vector2(float(box.tile.x), float(box.tile.y)) * 32
+		node.queue_redraw()
+	for identifier in container_nodes.keys():
+		if not present.has(identifier):
+			container_nodes[identifier].queue_free()
+			container_nodes.erase(identifier)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if state.is_empty() or not evaluation.is_empty():
+			get_tree().quit()
+		elif is_instance_valid(api) and api.connected and api.idle():
+			play_ui.open_pause()
+			play_ui.save_and_leave("quit")
+		else:
+			play_ui.open_pause()
+			play_ui.notice("\u64cd\u4f5c\u5c1a\u672a\u7ed3\u675f\u3002\u8bf7\u5148\u7b49\u5f85\u6216\u91cd\u8fde\uff0c\u518d\u4fdd\u5b58\u9000\u51fa\u3002")

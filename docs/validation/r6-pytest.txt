@@ -1,0 +1,11 @@
+........................................................................ [ 39%]
+........................................................................ [ 78%]
+........................................                                 [100%]
+============================= slowest 6 durations ==============================
+0.88s call     tests/test_world.py::test_position_stream_keeps_only_current_state_and_bounded_retries
+0.79s call     tests/test_live_npc_integration.py::test_frozen_session_can_find_ordinary_world_without_mutating_evaluation
+0.61s call     tests/test_live_npc_integration.py::test_existing_spawn_cluster_repairs_once_without_reviving_dead_npc
+0.52s call     tests/test_playable_r6.py::test_world_generates_real_errands_and_caps_population
+0.51s setup    tests/test_playable_r6.py::test_world_generates_real_errands_and_caps_population
+0.49s setup    tests/test_playable_r6.py::test_journal_creates_persistent_factual_chapter_after_purchase
+184 passed in 28.14s

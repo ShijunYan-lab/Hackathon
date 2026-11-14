@@ -138,6 +138,6 @@
     }
   ],
   "max_proposals": 2,
-  "npc_alive_limit": 24,
+  "npc_alive_limit": 28,
   "timeout_s": 9
 }

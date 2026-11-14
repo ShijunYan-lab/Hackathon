@@ -51,6 +51,9 @@ def apply_intent(connection, state, context, intent, region, seq, source_id):
         raise WorldError("ACTION_NOT_SUPPORTED", "意图超出当前可用动作。")
     actor = living_actor(state, context.npc_id)
     from server.world import economy
+    if intent.action in ("OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME"):
+        from server.world.living_world import apply_dialogue_action
+        return apply_dialogue_action(connection, state, context, intent, region, seq, source_id)
     from shared.world_protocol import OfferRequest
     if intent.action == 'CRAFT':
         if set(intent.params) != {'recipe_id'} or intent.target_id not in (None, actor.id):
@@ -107,6 +110,8 @@ def apply_intent(connection, state, context, intent, region, seq, source_id):
                         "root_event_ids": memory["source_event_ids"]},
                        [source_id, *memory["source_event_ids"]], [actor.id, target.id])
         return [shared], []
+    if intent.action not in ("MOVE", "GATHER"):
+        raise WorldError("ACTION_NOT_SUPPORTED", "This action has no enabled executor.")
     if intent.params:
         raise WorldError("INVALID_INTENT", "MOVE/GATHER 使用已有目标 ID，参数应为空。")
     if actor.task_id or any(task.actor_id == actor.id and task.status in ("pending", "running") for task in state.tasks):
@@ -147,7 +152,7 @@ def apply_task_report(connection, state, payload, region, seq):
     if task.actor_id != report.actor_id or task.status not in ("pending", "running"):
         raise WorldError("PRECONDITION_FAILED", "任务已失效或报告角色不匹配。")
     actor = living_actor(state, report.actor_id)
-    if task.kind not in ("MOVE", "ATTACK"):
+    if task.kind not in ("MOVE", "FLEE", "ATTACK"):
         raise WorldError("ACTION_NOT_SUPPORTED", "该任务类型尚未接入结算。")
     if report.status == "failed" and not report.failure_code:
         raise WorldError("PRECONDITION_FAILED", "失败任务需提供原因。")
@@ -186,9 +191,17 @@ def apply_task_report(connection, state, payload, region, seq):
     task.status = report.status
     actor.task_id = None
     actor.behavior = "idle"
+    if report.status == "succeeded" and effect["action"] in ("COURIER_COLLECT", "COURIER_DELIVER"):
+        from server.world.living_world import task_effect
+        events.extend(task_effect(connection, state, effect, task, actor, finished, region, seq + len(events)))
     connection.execute("INSERT INTO task_reports VALUES (?, ?, ?)", (state.world_id, task.id, serialized))
     if task.kind == 'ATTACK' and region.get('reactive_npcs'):
         template = next((value for value in region.get('npc_spawns',[]) if value.get('appearance_key')==actor.appearance_key),None)
+        from server.world import living_world
+        life_data=living_world.read(connection,state.world_id)
+        person=(life_data or {}).get('people',{}).get(actor.id,{})
+        if person.get('home_tile'):
+            template={'tile':person['home_tile']}
         if template:
             from shared.protocol import Tile
             home=Tile.model_validate(template['tile'])

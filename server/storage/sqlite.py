@@ -83,6 +83,8 @@ class WorldStore:
             connection.executescript(knowledge.SCHEMA)
             connection.executescript(tasks.SCHEMA)
             connection.executescript(economy.SCHEMA)
+            from server.world import living_world
+            connection.executescript(living_world.SCHEMA)
         with self.connection(write=True) as connection:
             for row in connection.execute('SELECT state FROM worlds').fetchall():
                 economy.initialize(connection, StateView.model_validate_json(row[0]))
@@ -183,6 +185,11 @@ class WorldStore:
                                (world_id, self.combat_rules.model_dump_json()))
             self.append_event(connection, world_id, event)
             economy.initialize(connection, state)
+            if region.get("living_world"):
+                from server.world import living_world
+                state.appearance = body.appearance
+                living_world.initialize(connection, state, region, event.id)
+                connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))
             result = response(body.request_id, state, {"state": state.model_dump(mode="json")})
             self.remember(connection, "new_world", body, result)
             return result
@@ -246,6 +253,8 @@ class WorldStore:
             if self.command_observer is not None:
                 self.command_observer(connection, state, events)
             economy.reconcile(connection, state, events)
+            from server.world import living_world
+            living_world.on_events(connection, state, events, json.loads(row["region"]))
             state.world_version += 1
             state = StateView.model_validate(state.model_dump())
             connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))

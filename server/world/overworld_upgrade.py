@@ -17,7 +17,10 @@ def upgrade(store, authored_region):
             templates = {value['appearance_key']:value for value in authored_region['npc_spawns']}
             region.update(reactive_npcs=True, npc_runtime_version=2, npc_spawns=authored_region['npc_spawns'])
             spawn = region['spawn_tile']
+            from server.world.living_world import read
+            life = read(connection,state.world_id) or {}
             misplaced = [actor for actor in state.actors if actor.kind=='npc' and actor.alive and not actor.task_id
+                and not life.get('people',{}).get(actor.id,{}).get('dynamic',False)
                 and actor.appearance_key in templates
                 and math.hypot(actor.tile.x-spawn['x'],actor.tile.y-spawn['y'])<6
                 and math.hypot(actor.tile.x-templates[actor.appearance_key]['tile']['x'],

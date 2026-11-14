@@ -16,6 +16,8 @@ var notice_timer:=8.0
 
 func _ready()->void:
 	super._ready()
+	for topic_button in topic_buttons: topic_button.hide()
+	transcript.size.y = 109
 	book=Control.new()
 	book.position=Vector2(72,82)
 	book.size=Vector2(656,327)
@@ -99,7 +101,10 @@ func draw_dialogue_frame(_size:Vector2)->void:
 func show_npc(npc:Node2D)->void:
 	close_panel()
 	super.show_npc(npc)
-	transcript.text="你走近了"+str(npc.data.name)+"。"
+	title = world.npc_caption(npc)
+	role = ""
+	entry.placeholder_text = "\u76f4\u63a5\u8f93\u5165\u4f60\u60f3\u8bf4\u7684\u8bdd\u2026"
+	transcript.text = "\u4f60\u8d70\u8fd1\u4e86\u5bf9\u65b9\uff0c\u7b49\u5f85\u4f60\u5f00\u53e3\u3002"
 	pending=false
 
 func submit_text(value:String)->void:
@@ -118,6 +123,7 @@ func submit_text(value:String)->void:
 func receive_reply(value:String,mode:String)->void:
 	pending=false
 	if not dialog_open: return
+	if is_instance_valid(current_npc): title = world.npc_caption(current_npc)
 	transcript.add_text("\n"+title+"："+value+"\n（"+mode+"）")
 	entry.editable=true
 	send_button.disabled=false
@@ -173,13 +179,13 @@ func render_inventory()->void:
 	item_ids.clear()
 	for item in world.player.inventory_items:
 		item_ids.append(str(item.id))
-		inventory.add_item(str(item.name)+("  · 已装备" if world.player.active_weapon().get("id")==item.id else "")+"   伤害 "+str(int(item.stats.damage)))
+		inventory.add_item(str(item.name)+("  · 已装备" if item.id in world.player.equipment_slots.values() else "")+"   伤害 "+str(int(item.stats.damage)))
 	if not item_ids.is_empty():
 		var index:=maxi(0,item_ids.find(chosen))
 		chosen=item_ids[index]
 		inventory.select(index)
-	body.text="钱币：%d\n\n附近人物：%s\n\n物品、装备与交易均记录在此世界。\n出售需对方接受提议。\n\nF6 保存旅途    F7 读取存档"%[int(world.economy.get("wallets",{}).get(world.player.entity_id,0)),str(world.near_npc.display_name) if world.near_npc else "请走近人物"]
-	button("装备",18,252,80,func(): item_action("EQUIP"))
+	body.text="钱币：%d\n\n附近人物：%s\n\n物品、装备与交易均记录在此世界。\n出售需对方接受提议。\n\nF6 保存旅途    F7 读取存档"%[int(world.economy.get("wallets",{}).get(world.player.entity_id,0)),world.npc_caption(world.near_npc) if world.near_npc else "请走近人物"]
+	button("\u88c5\u5907 / \u4f7f\u7528",18,252,80,use_or_equip)
 	button("赠送",105,252,80,func(): item_action("GIVE"),world.near_npc==null)
 	button("提出出售",192,252,105,func(): item_action("offer"),world.near_npc==null)
 	button("接受报价",304,252,105,accept_offer)
@@ -288,3 +294,10 @@ func _input(event:InputEvent)->void:
 		close_panel()
 		get_viewport().set_input_as_handled()
 	else: super._input(event)
+
+
+func use_or_equip() -> void:
+	var item: Dictionary = world.player.find_item(chosen)
+	if item.get("base_type") == "consumable":
+		world.api.call_api("consume", "/v1/worlds/{world}/consume", {"item_id": chosen}, true)
+	else: item_action("EQUIP")

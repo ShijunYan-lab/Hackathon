@@ -1,0 +1,51 @@
+{
+  "test": "real uvicorn + loopback HTTP, no model call",
+  "health": {
+    "status": "ok",
+    "mode": "fallback",
+    "component_modes": {
+      "npc": "fallback",
+      "director": "fallback"
+    },
+    "api_version": "v1",
+    "region_id": "overworld",
+    "map_width_tiles": 320,
+    "map_height_tiles": 224,
+    "capabilities": [
+      "persistent_worlds",
+      "checkpoint",
+      "events",
+      "hit",
+      "death_cleanup",
+      "pickup",
+      "equip",
+      "give",
+      "story",
+      "dialogue",
+      "task_report",
+      "advance",
+      "director",
+      "save",
+      "load",
+      "evaluation",
+      "learning",
+      "rollback",
+      "offers",
+      "craft",
+      "migration"
+    ],
+    "play_revision": "r6",
+    "model_connected": false,
+    "map_fixture": false,
+    "debug_views": false,
+    "director_model": null,
+    "director_configured": false
+  },
+  "actors": 30,
+  "containers": 14,
+  "starter_items": 2,
+  "saves": 1,
+  "heartbeat_status": 200,
+  "godot_run": false,
+  "windows_run": false
+}

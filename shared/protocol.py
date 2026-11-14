@@ -20,6 +20,7 @@ class VersionedRequest(RequestBase):
 class NewWorldRequest(RequestBase):
     seed: int = Field(ge=0, le=2147483647)
     player_name: str = Field(min_length=1, max_length=30)
+    appearance: Literal["male", "female"] = "male"
 
 class DialogueRequest(VersionedRequest):
     npc_id: str
@@ -111,9 +112,10 @@ class ItemStats(DTO):
 class ItemState(DTO):
     id: str
     name: str
-    base_type: Literal["sword", "axe", "hammer", "bow", "crossbow", "staff", "material", "consumable"]
+    base_type: Literal["sword", "axe", "hammer", "bow", "crossbow", "staff", "material", "consumable", "armor"]
     quality: Literal["common", "uncommon", "rare"]
     material_id: str
+    equipment_slot: str = ""
     affixes: list[str] = Field(default_factory=list, max_length=2)
     stats: ItemStats
     owner_id: str | None = None
@@ -142,6 +144,7 @@ class ActorState(DTO):
     appearance_key: str
     org_ids: list[str] = Field(default_factory=list)
     equipped_item_id: str | None = None
+    equipped_slots: dict[str, str] = Field(default_factory=dict)
     behavior: Literal["idle", "moving", "attacking", "fleeing", "dead"] = "idle"
     task_id: str | None = None
 
@@ -200,6 +203,10 @@ class StateView(DTO):
     relations: list[RelationView]
     tasks: list[Task]
     sites: list[SiteView]
+    appearance: Literal["male", "female"] = "male"
+    containers: list[dict[str, Any]] = Field(default_factory=list)
+    quests: list[dict[str, Any]] = Field(default_factory=list)
+    known_npc_ids: list[str] = Field(default_factory=list)
 
 class Event(DTO):
     id: str
@@ -214,7 +221,7 @@ class Event(DTO):
 
 Action = Literal["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO",
                  "PROPOSE_RELATION", "RESPOND_PROPOSAL", "ATTACK", "FLEE",
-                 "CRAFT", "JOIN_ORG", "LEAVE_ORG"]
+                 "CRAFT", "JOIN_ORG", "LEAVE_ORG", "OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME"]
 class Intent(DTO):
     action: Action
     target_id: str | None = None
@@ -228,6 +235,7 @@ class MemoryProposal(DTO):
     status: Literal["unverified", "supported", "contradicted"]
 
 class AgentDecision(DTO):
+    social_signal: Literal["neutral", "insult", "threat", "apology", "thanks"] = "neutral"
     reply: str = Field(default="", max_length=500)
     memory_proposals: list[MemoryProposal] = Field(default_factory=list)
     intent: Intent | None = None

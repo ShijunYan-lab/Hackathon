@@ -1,0 +1,196 @@
+{
+  "ModelConfig": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "enabled": {
+        "default": false,
+        "title": "Enabled",
+        "type": "boolean"
+      },
+      "base_url": {
+        "default": "",
+        "maxLength": 500,
+        "title": "Base Url",
+        "type": "string"
+      },
+      "model": {
+        "default": "",
+        "maxLength": 160,
+        "title": "Model",
+        "type": "string"
+      },
+      "api_key": {
+        "default": "",
+        "maxLength": 2048,
+        "title": "Api Key",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id"
+    ],
+    "title": "ModelConfig",
+    "type": "object"
+  },
+  "ShopBuy": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "item_id": {
+        "title": "Item Id",
+        "type": "string"
+      },
+      "quote_id": {
+        "title": "Quote Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "item_id",
+      "quote_id"
+    ],
+    "title": "ShopBuy",
+    "type": "object"
+  },
+  "ContainerTake": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "item_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Item Id"
+      },
+      "take_gold": {
+        "default": false,
+        "title": "Take Gold",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version"
+    ],
+    "title": "ContainerTake",
+    "type": "object"
+  },
+  "ConsumableUse": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "item_id": {
+        "title": "Item Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "item_id"
+    ],
+    "title": "ConsumableUse",
+    "type": "object"
+  },
+  "QuestAccept": {
+    "additionalProperties": false,
+    "properties": {
+      "api_version": {
+        "const": "v1",
+        "default": "v1",
+        "title": "Api Version",
+        "type": "string"
+      },
+      "request_id": {
+        "maxLength": 128,
+        "minLength": 1,
+        "title": "Request Id",
+        "type": "string"
+      },
+      "expected_world_version": {
+        "minimum": 0,
+        "title": "Expected World Version",
+        "type": "integer"
+      },
+      "quest_id": {
+        "title": "Quest Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "expected_world_version",
+      "quest_id"
+    ],
+    "title": "QuestAccept",
+    "type": "object"
+  }
+}

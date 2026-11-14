@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS story_chapters (
 TURNING_POINTS = (
     'hit_applied', 'actor_died', 'player_downed', 'task_succeeded', 'task_failed',
     'resource_gathered', 'resource_need_fulfilled', 'offer_accepted', 'npc_migrated',
+    'quest_completed', 'quest_failed', 'shop_purchase', 'container_item_taken', 'price_negotiated',
 )
 
 
@@ -54,15 +55,27 @@ def recall(connection, world_id, entity_ids):
     return first + [record for record in recent if not first or record['id'] != first[0]['id']]
 
 
-def record(connection, state, evidence, draft):
+def record(connection, state, evidence, draft, mode='live'):
     sources = {event.id: event for event in evidence}
     if not sources or set(draft.source_event_ids) != sources.keys():
         return None
     seq = max(event.event_seq for event in evidence)
     entities = sorted({actor for event in evidence for actor in (event.actor_id, event.target_id) if actor})
     chapter = {**draft.model_dump(mode='json'), 'id': 'chapter_' + uuid4().hex,
-               'through_event_seq': seq, 'entity_ids': entities, 'mode': 'live',
+               'through_event_seq': seq, 'entity_ids': entities, 'mode': mode,
                'significance': 2 if any(event.type == 'actor_died' for event in evidence) else 1}
     connection.execute('INSERT INTO story_chapters VALUES (?, ?, ?)',
                        (state.world_id, seq, json.dumps(chapter, ensure_ascii=False)))
     return chapter
+
+
+def factual_draft(evidence):
+    """Deterministic ledger summary. Never pretends to be model-written prose."""
+    if not evidence:return None
+    from server.world.living_world import EVENT_LABELS
+    lines=[]
+    for value in evidence:
+        caption=EVENT_LABELS.get(value.type,value.type)
+        detail=value.facts.get('title') or value.facts.get('item_name') or ''
+        lines.append(f"[{value.tick}] {caption} {detail}".strip())
+    return ChapterDraft(title='\u65c5\u9014\u8bb0\u5f55',narrative='\n'.join(lines)[:600],source_event_ids=[v.id for v in evidence])

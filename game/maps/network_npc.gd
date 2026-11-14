@@ -8,6 +8,7 @@ var speech:Label
 var speech_box:PanelContainer
 var speech_until:=0
 var combat_started:=0
+var corpse_cleanup_started: bool = false
 
 func _ready()->void:
 	visual_foot_y=2
@@ -64,6 +65,11 @@ func say(value:String)->void:
 	set_meta("speech_active",true)
 
 func _load_visual_frames()->void:
+	if sprite_skin in ["wolf", "wisp"]:
+		super._load_visual_frames()
+		data = {"name":"", "role":"", "place":"", "greeting":""}
+		portrait = load("res://actors/assets/sprites/" + sprite_skin + ".png")
+		return
 	data=Reference.descriptor(sprite_skin)
 	portrait=Reference.texture_for(sprite_skin,false)
 	visual_frame_size=Vector2i(48,64)
@@ -130,6 +136,15 @@ func apply_actor_state(actor:Dictionary)->void:
 	if alive and (not reported.is_empty() or npc_type in ["wolf","wisp"]): global_position=before
 	data.id=entity_id
 	data.name=display_name
+	if not alive and not corpse_cleanup_started:
+		corpse_cleanup_started = true
+		collision_layer = 0
+		collision_mask = 0
+		speech_box.hide()
+		var fade = create_tween()
+		fade.tween_interval(0.7)
+		fade.tween_property(self, "modulate:a", 0.0, 0.7)
+		fade.tween_callback(hide)
 
 func execute_task(task:Dictionary)->void:
 	if reported.has(str(task.id)): return

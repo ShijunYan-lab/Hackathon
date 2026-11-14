@@ -22,6 +22,10 @@ def require_near(actor, region_id, tile, distance=2):
 
 
 def remove_equipment(actor, item):
+    for slot, identifier in list(actor.equipped_slots.items()):
+        if identifier == item.id:
+            actor.equipped_slots.pop(slot)
+            actor.armor = max(0, actor.armor - item.stats.armor)
     if actor.equipped_item_id == item.id:
         actor.equipped_item_id = None
         actor.armor = max(0, actor.armor - item.stats.armor)
@@ -44,13 +48,21 @@ def apply_item_command(state: StateView, kind: str, payload: dict, seq: int) -> 
             raise WorldError("ITEM_NOT_OWNED", "角色不持有这件物品。")
         updated = item
         if kind == "EQUIP":
-            if item.base_type not in ("sword", "axe", "hammer", "bow", "crossbow", "staff"):
-                raise WorldError("PRECONDITION_FAILED", "该物品不能作为武器装备。")
-            old = next((value for value in state.items if value.id == actor.equipped_item_id), None)
-            if old is not None:
-                remove_equipment(actor, old)
-            actor.equipped_item_id = item.id
-            actor.armor += item.stats.armor
+            if item.base_type == "armor":
+                slot = item.equipment_slot or "chest"
+                old = next((value for value in state.items if value.id == actor.equipped_slots.get(slot)), None)
+                if old is not None:
+                    remove_equipment(actor, old)
+                actor.equipped_slots[slot] = item.id
+                actor.armor += item.stats.armor
+            else:
+                if item.base_type not in ("sword", "axe", "hammer", "bow", "crossbow", "staff"):
+                    raise WorldError("PRECONDITION_FAILED", "This item is not equipment.")
+                old = next((value for value in state.items if value.id == actor.equipped_item_id), None)
+                if old is not None:
+                    remove_equipment(actor, old)
+                actor.equipped_item_id = item.id
+                actor.armor += item.stats.armor
         elif kind == "GIVE":
             target = living_actor(state, payload["target_id"])
             if target.id == actor.id:

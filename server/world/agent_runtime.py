@@ -70,6 +70,9 @@ class AgentGateway:
             return decision, "live"
         except Exception:
             self.last_mode = "fallback"
+            if kind == "dialogue" and context.identity.get("living_world"):
+                from server.agents.game_fallback import dialogue as fallback_dialogue
+                return fallback_dialogue(context, str(argument)), "fallback"
             return AgentDecision(reply="暂时无法作出新决定，我会等待。", intent={"action": "WAIT"}), "fallback"
 
 
@@ -165,10 +168,28 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
             if org_id in {value['id'] for value in entities}:
                 candidates.append({'action':'LEAVE_ORG','target_id':org_id,'params':{},
                     'description':'退出自己所属的组织。'})
+    from server.world import living_world as life
+    personality = life.identity(connection, state, npc.id)
+    life_enabled = bool(personality)
+    if life_enabled:
+        player = next(a for a in state.actors if a.id == state.player_id)
+        if player.id in visible_ids:
+            candidates.append({'action':'ASK_WORK','target_id':player.id,'params':{},'description':'Tell the player about actual available errands.'})
+            if life.merchant_box(state, npc.id):
+                for action in ('OPEN_TRADE', 'BARGAIN'):
+                    candidates.append({'action':action,'target_id':player.id,'params':{},'description':'Show actual stock or request a memory-based price quote. Never invent prices.'})
+            for quest in state.quests:
+                if quest.get('issuer_id') == npc.id and quest['status'] == 'open':
+                    entities.append({'id':quest['id'],'kind':'quest',**quest})
+                    candidates.append({'action':'ACCEPT_QUEST','target_id':quest['id'],'params':{},'description':'Only if the player explicitly agrees to take this errand.'})
+                if quest.get('subject_id') == npc.id and quest['status'] == 'active' and quest.get('assignee_id') == player.id:
+                    candidates.append({'action':'GUIDE_HOME','target_id':player.id,'params':{},'description':'Accept directions and actually walk home when the player offers help.'})
     return AgentContext(npc_id=npc.id, world_version=state.world_version,
         identity={"id": npc.id, "name": npc.name, "org_ids": npc.org_ids,
                   "region_id": npc.region_id, "tile": npc.tile.model_dump(), "hp": npc.hp,
-                  "alive": npc.alive, "role": template.get("role", "旅人"),
+                  "alive": npc.alive, "role": personality.get("role", template.get("role", "旅人")),
+                  "personality": personality.get("personality", {}), "relationships": personality.get("relations", {}),
+                  "living_world": life_enabled, "can_trade": bool(life.merchant_box(state, npc.id)),
                   "home_tile": template.get("tile"), "recent_dialogue": recent_dialogue,
                   "action_candidates": candidates,
                   "residence": template.get("place", "这片土地"),
@@ -176,7 +197,7 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
         goals=stored["goals"] or template.get("goals", []), own_inventory=own_inventory,
         known_entities=entities, known_events=[*known, *extra_events], memories=selected_memories,
         allowed_actions=["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO", 'PROPOSE_RELATION',
-                         'RESPOND_PROPOSAL', 'CRAFT', 'JOIN_ORG', 'LEAVE_ORG'],
+                         'RESPOND_PROPOSAL', 'CRAFT', 'JOIN_ORG', 'LEAVE_ORG'] + (["OPEN_TRADE", "BARGAIN", "ASK_WORK", "ACCEPT_QUEST", "GUIDE_HOME"] if life_enabled else []),
         policy=stored["policy"], policy_version=stored["version"])
 
 
@@ -308,6 +329,16 @@ class AgentRuntime:
                 self.store.append_event(connection, world_id, speech)
                 state, events, task_ids, intent_status = self.apply_decision(
                     connection, state, context, decision, mode, region, seq + 1)
+                from server.world import living_world as life
+                events.extend(life.social_update(connection, state, body.npc_id, decision.social_signal, speech.id, seq + 1 + len(events)))
+                npc = living_actor(state, body.npc_id)
+                if npc.name in decision.reply and body.npc_id not in state.known_npc_ids:
+                    state.known_npc_ids.append(body.npc_id)
+                for effect in events:
+                    if effect.type == "price_negotiated":
+                        decision.reply = effect.facts["explanation"]
+                if intent_status == "rejected":
+                    decision.reply += "\n[这次行动未执行：请检查对方意愿、距离和资源。]"
                 reply_event = event(state, "npc_speech", seq + 1 + len(events), body.npc_id, state.player_id,
                     {"text": decision.reply, "mode": mode, "source_type": "report"}, [speech.id],
                     [body.npc_id, state.player_id])
@@ -323,6 +354,8 @@ class AgentRuntime:
                     self.store.append_event(connection, world_id, value)
                 result = response(body.request_id, state, {"reply": decision.reply, "mode": mode, "npc_id":body.npc_id,
                     "intent_status": intent_status, "task_ids": task_ids,
+                    "ui_actions": ([{"kind":"open_trade", "merchant_id":body.npc_id}] if any(e.type == "trade_opened" for e in events) else []) +
+                        ([{"kind":"show_quests"}] if any(e.type == "quest_information" for e in events) else []),
                     "events": [value.model_dump(mode="json") for value in [speech, *events]],
                     "state": state.model_dump(mode="json")})
                 self.store.remember(connection, scope, body, result)

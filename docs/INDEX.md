@@ -1,3 +1,9 @@
+# R6
+
+- [R6 startup and tests](../README_R6.md)
+- [R6 integration handoff](R6_HANDOFF.md)
+- [R6 validation scope](R6_VALIDATION.md)
+
 # 文档导航：各看哪些文件
 
 | 用途 | 读这些 |

@@ -1,0 +1,9 @@
+{
+  "release": "R6 source integration candidate",
+  "base_commit_from_uploaded_zip": "1e2d84c5a01d2a11454364d398cabd6306449029",
+  "base_zip_sha256": "9e72de7d46bb572b5a0de0ea40355f3e159d07a19cdfa5d7264b66322cd2ed33",
+  "backend_test_count": 184,
+  "godot_runtime_tested": false,
+  "windows_launcher_tested": false,
+  "live_provider_tested": false
+}

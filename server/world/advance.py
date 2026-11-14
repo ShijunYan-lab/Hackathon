@@ -236,9 +236,15 @@ class WorldTurns:
                               "retry_next_turn": retry_next, "trigger_event_ids": sorted(triggers_for_director)}
                     connection.execute("INSERT INTO director_runs VALUES (?, ?, ?)",
                                        (world_id, "director_" + uuid4().hex, json.dumps(record, ensure_ascii=False)))
+                from server.world import living_world as life
+                emitted.extend(life.tick(connection, state, region, seq + len(emitted), body.trigger_event_ids))
                 emitted.append(event(state, "world_advanced", seq + len(emitted), None, None,
                     {"reason": body.reason, "director_status": result.status}, body.trigger_event_ids, []))
-                chapter = chronicle.record(connection, state, evidence, draft) if draft else None
+                if not evidence: evidence=chronicle.candidates(connection,state)
+                if draft is None:
+                    chapter=chronicle.record(connection,state,evidence,chronicle.factual_draft(evidence),mode='rules') if evidence else None
+                else:
+                    chapter=chronicle.record(connection,state,evidence,draft)
                 economy.reconcile(connection, state, emitted)
                 state.world_version += 1
                 state = StateView.model_validate(state.model_dump())

@@ -87,7 +87,7 @@ def settle_hit(state: StateView, hit: HitPayload, region: dict, rules: CombatRul
         state.actors = [actor.model_copy(update=updates) if actor.id == target.id else actor
                         for actor in state.actors]
         defender = next(actor for actor in state.actors if actor.id == target.id)
-        if region.get('reactive_npcs', False) and target.kind == 'npc' and actors[hit.attacker_id].kind == 'player':
+        if region.get('reactive_npcs', False) and not region.get('living_world') and target.kind == 'npc' and actors[hit.attacker_id].kind == 'player':
             existing = next((task for task in state.tasks if task.actor_id == target.id
                 and task.kind == 'ATTACK' and task.target_id == hit.attacker_id and task.status in ('pending','running')), None)
             if existing is None:
@@ -139,7 +139,7 @@ def settle_hit(state: StateView, hit: HitPayload, region: dict, rules: CombatRul
         emit("player_recovered", {"region_id": region["id"], "tile": region["spawn_tile"],
                                   "hp": target.max_hp, "lost_item_ids": sorted(dropped_ids)}, [death_id])
     else:
-        updates.update(behavior="dead", task_id=None, equipped_item_id=None, armor=0, org_ids=[])
+        updates.update(behavior="dead", task_id=None, equipped_item_id=None, equipped_slots={}, armor=0, org_ids=[])
         for organization in state.organizations:
             if target.id not in organization.member_ids and organization.representative_id != target.id:
                 continue

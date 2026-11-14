@@ -24,8 +24,8 @@ def command(client, state, kind, payload):
 def test_authored_map_and_limited_agent_knowledge(world):
     client, app, state = world
     assert state['current_region_id'] == 'overworld'
-    assert len(state['actors']) == 16
-    assert len({actor['appearance_key'] for actor in state['actors'][1:]}) == 15
+    assert len(state['actors']) == 30
+    assert len({actor['appearance_key'] for actor in state['actors'][1:16]}) == 15
     region = json.loads((ROOT / 'game/maps/backend_world.json').read_text(encoding='utf-8'))['regions'][0]
     assert (region['width_tiles'],region['height_tiles']) == (320,224)
     blocked = {tuple(cell) for cell in region['blocked_tiles']}
@@ -38,11 +38,23 @@ def test_authored_map_and_limited_agent_knowledge(world):
     assert context.goals
     assert model.actors[-1].id not in {value['id'] for value in context.known_entities}
 
+def grant_test_weapon(app,state,kind):
+    # Combat protocol tests deliberately equip a fixture weapon. Production new
+    # games must not receive the test arsenal.
+    from server.world import living_world as life
+    import random
+    model=app.state.store.state(state['world_id'])
+    with app.state.store.connection(write=True) as connection:
+        source=connection.execute('SELECT id FROM events WHERE world_id=? ORDER BY seq LIMIT 1',(model.world_id,)).fetchone()[0]
+        item=life._new_item(model,model.player_id,source,random.Random(10),kind=kind)
+        connection.execute('UPDATE worlds SET state=? WHERE id=?',(model.model_dump_json(),model.world_id))
+    return model.model_dump(mode='json'),item.model_dump(mode='json')
+
 @pytest.mark.parametrize('kind,reach', [('sword',1),('axe',1),('hammer',1),('bow',8),('crossbow',10),('staff',8)])
 def test_a_weapon_equip_and_authoritative_hit(world,kind,reach):
-    client, _, state = world
+    client, app, state = world
+    state,weapon=grant_test_weapon(app,state,kind)
     player, target = state['actors'][:2]
-    weapon = next(item for item in state['items'] if item['owner_id']==player['id'] and item['base_type']==kind)
     response = command(client,state,'EQUIP',{'actor_id':player['id'],'item_id':weapon['id']})
     assert response.status_code == 200
     state = response.json()['data']['state']
@@ -64,9 +76,9 @@ def test_transport_uses_reachable_big_map(world):
     assert result.json()['data']['state']['actors'][0]['tile'] == {'x':120.5,'y':143.5}
 
 def test_equipped_ranged_weapon_cannot_hit_past_its_range(world):
-    client, _, state = world
+    client, app, state = world
+    state,bow=grant_test_weapon(app,state,'bow')
     player, target = state['actors'][:2]
-    bow = next(item for item in state['items'] if item['owner_id']==player['id'] and item['base_type']=='bow')
     state = command(client,state,'EQUIP',{'actor_id':player['id'],'item_id':bow['id']}).json()['data']['state']
     result = command(client,state,'HIT',{'attack_id':'distant','attacker_id':player['id'],
         'target_id':target['id'],'weapon_id':bow['id'],'region_id':'overworld',
