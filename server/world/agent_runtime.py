@@ -137,6 +137,27 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
                 candidates.append({'action':'GATHER','target_id':target.id,'params':{},
                     'description':'走到这处资源点采集。'})
     if region.get('reactive_npcs'):
+        # A verbal sale becomes an offer, never an immediate transfer of money.
+        # B validates exact candidate parameters, so advertise owned goods here.
+        row = connection.execute('SELECT body FROM world_economy_rules WHERE world_id=?',
+                                 (state.world_id,)).fetchone()
+        rules = json.loads(row[0]) if row else {}
+        prices = rules.get('sale_prices', {})
+        player = next(actor for actor in state.actors if actor.id == state.player_id)
+        if player.alive and player.id in visible_ids:
+            try:
+                require_near(npc, player.region_id, player.tile)
+            except WorldError:
+                pass
+            else:
+                for item in own_inventory[:12]:
+                    price = prices.get(item.material_id, prices.get(item.base_type, 5))
+                    if not isinstance(price, int) or isinstance(price, bool) or price < 0:
+                        continue
+                    candidates.append({'action': 'TRANSFER', 'target_id': player.id,
+                        'params': {'item_id': item.id, 'price': price},
+                        'description': f'向玩家提出出售实际持有的“{item.name}”，报价 {price} 金币；'
+                                       '玩家接受报价后才扣款交货，现在不能声称已经成交。'})
         # B requires exact candidate parameters before accepting a transfer.
         organizations = {org.id: org for org in state.organizations}
         actors = {actor.id: actor for actor in state.actors}
@@ -171,8 +192,15 @@ def build_context(connection, state, npc_id, extra_events=(), trigger_ids=()):
                   "alive": npc.alive, "role": template.get("role", "旅人"),
                   "home_tile": template.get("tile"), "recent_dialogue": recent_dialogue,
                   "action_candidates": candidates,
+                  "creation_rules": "可以按玩家需求提交 creation_proposal 动态设计物品名称和描述，不必查固定商品表。"
+                    "ingredient_ids 必须是 own_inventory 中实际持有的 material ID，并在制作时消耗。"
+                    "source_event_ids 引用本次已知对话或事件。price 是报价，玩家接受前不能说已付款或交付。"
+                    "描述必须符合原料性质；木头不能酿酒。此阶段只支持即时加工的普通物件，"
+                    "不支持凭空生产、发酵等待、疗效或魔法效果；缺少条件应说明缺口。intent 留空或 WAIT。",
                   "residence": template.get("place", "这片土地"),
-                  "conduct": "在自己的工作地点附近活动。除非玩家明确请求、采集或自卫，不要跟随玩家前往出生点。"},
+                  "conduct": "在自己的工作地点附近活动。除非玩家明确请求、采集或自卫，不要跟随玩家前往出生点。"
+                             "已有商品使用候选报价；新商品可按 creation_rules 提交制作提案，未获世界确认不能声称成功。"
+                             "提出报价不代表付款或交付成功；请玩家在背包接受报价。"},
         goals=stored["goals"] or template.get("goals", []), own_inventory=own_inventory,
         known_entities=entities, known_events=[*known, *extra_events], memories=selected_memories,
         allowed_actions=["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO", 'PROPOSE_RELATION',
@@ -261,8 +289,15 @@ class AgentRuntime:
                     "new": dict(stored["policy"]), "evidence_memory_ids": decision.evidence_memory_ids})
                 connection.execute("INSERT OR REPLACE INTO npc_profiles VALUES (?, ?, ?)",
                                    (state.world_id, context.npc_id, json.dumps(stored)))
-            events, task_ids = apply_intent(connection, candidate, context, decision.intent,
-                                           region, seq + 1, accepted.id)
+            if decision.creation_proposal is not None:
+                if decision.intent and decision.intent.action != 'WAIT':
+                    raise WorldError('INVALID_INTENT', '创造提案不能同时执行另一动作。')
+                from server.world.creation import execute
+                events = execute(connection, candidate, context, decision.creation_proposal, seq + 1, accepted.id)
+                task_ids = []
+            else:
+                events, task_ids = apply_intent(connection, candidate, context, decision.intent,
+                                               region, seq + 1, accepted.id)
             connection.execute("RELEASE agent_decision")
             intent_status = "scheduled" if task_ids else "none"
             events = [accepted, *events]
@@ -308,6 +343,10 @@ class AgentRuntime:
                 self.store.append_event(connection, world_id, speech)
                 state, events, task_ids, intent_status = self.apply_decision(
                     connection, state, context, decision, mode, region, seq + 1)
+                if decision.creation_proposal is not None:
+                    decision.reply += ('\n【世界确认】制作未通过核验，没有消耗材料或建立报价。' if intent_status == 'rejected'
+                                       else '\n【世界确认】已消耗材料制作物品并建立报价；请在背包接受报价后付款取货。物品暂无饮用或特殊效果。')
+                    decision.reply = decision.reply[-500:]
                 reply_event = event(state, "npc_speech", seq + 1 + len(events), body.npc_id, state.player_id,
                     {"text": decision.reply, "mode": mode, "source_type": "report"}, [speech.id],
                     [body.npc_id, state.player_id])

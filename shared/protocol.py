@@ -227,7 +227,15 @@ class MemoryProposal(DTO):
     confidence: float = Field(ge=0, le=1)
     status: Literal["unverified", "supported", "contradicted"]
 
+class CreationProposal(DTO):
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(min_length=1, max_length=300)
+    ingredient_ids: list[str] = Field(min_length=1, max_length=8)
+    source_event_ids: list[str] = Field(min_length=1, max_length=8)
+    price: int = Field(ge=0, le=1000)
+
 class AgentDecision(DTO):
+    creation_proposal: CreationProposal | None = None
     reply: str = Field(default="", max_length=500)
     memory_proposals: list[MemoryProposal] = Field(default_factory=list)
     intent: Intent | None = None

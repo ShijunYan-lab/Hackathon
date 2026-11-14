@@ -140,7 +140,49 @@ def test_known_supply_is_a_valid_parameterized_candidate(tmp_path):
                 json.dumps({'org_id': org.id, 'resource': 'herb', 'quantity': 1, 'status': 'open',
                             'source_event_ids': [source.id]})))
             context = build_context(connection, model, npc.id)
-            candidate = next(c for c in context.identity['action_candidates'] if c['action'] == 'TRANSFER')
+            candidate = next(c for c in context.identity['action_candidates'] if c['action'] == 'TRANSFER' and c['target_id'] == org.id)
             assert candidate['target_id'] == org.id and candidate['params'] == {'item_id': item.id}
-            assert not any(c['action'] == 'TRANSFER' for c in
+            assert not any(c['action'] == 'TRANSFER' and c['target_id'] == org.id for c in
                            build_context(connection, model, rep.id).identity['action_candidates'])
+
+
+def test_npc_sale_candidate_creates_offer_before_atomic_payment(tmp_path):
+    from server.world.tasks import apply_intent
+    from shared.protocol import Intent
+
+    app = make_app(tmp_path / 'sale.sqlite3')
+    with TestClient(app) as client:
+        state = new(client)
+        npc = state['actors'][1]
+        state = near(client, state, npc)
+        store = app.state.store
+        model = store.state(state['world_id'])
+        path = '/v1/worlds/' + model.world_id
+        with store.connection(write=True) as conn:
+            context = build_context(conn, model, npc['id'])
+            candidate = next(c for c in context.identity['action_candidates']
+                             if c['action'] == 'TRANSFER' and c['target_id'] == model.player_id)
+            item_id = candidate['params']['item_id']
+            assert next(i for i in model.items if i.id == item_id).owner_id == npc['id']
+            before = dict(conn.execute('SELECT actor_id,gold FROM wallets WHERE world_id=?', (model.world_id,)))
+            region = json.loads(store.world_row(conn, model.world_id)['region'])
+            seq = conn.execute('SELECT MAX(seq) FROM events WHERE world_id=?', (model.world_id,)).fetchone()[0] + 1
+            from server.world.tasks import event as make_event
+            decision = make_event(model, 'decision_accepted', seq, npc['id'], model.player_id,
+                                  {}, [], [npc['id'], model.player_id])
+            store.append_event(conn, model.world_id, decision)
+            events, _ = apply_intent(conn, model, context,
+                Intent(**{k: candidate[k] for k in ('action','target_id','params')}), region, seq + 1, decision.id)
+            for event in events: store.append_event(conn, model.world_id, event)
+            offer_id = events[0].facts['offer_id']
+            assert dict(conn.execute('SELECT actor_id,gold FROM wallets WHERE world_id=?', (model.world_id,))) == before
+        body = {'request_id': 'pay-once', 'expected_world_version': state['world_version'],
+                'kind': 'ACCEPT_OFFER', 'payload': {'actor_id': model.player_id, 'offer_id': offer_id}}
+        result = client.post(path + '/commands', json=body).json()
+        assert result['ok'], result
+        assert client.post(path + '/commands', json=body).json() == result
+        assert next(i for i in result['data']['state']['items'] if i['id'] == item_id)['owner_id'] == model.player_id
+        wallets = client.get(path + '/economy').json()['data']['wallets']
+        price = candidate['params']['price']
+        assert wallets[model.player_id] == before[model.player_id] - price
+        assert wallets[npc['id']] == before[npc['id']] + price

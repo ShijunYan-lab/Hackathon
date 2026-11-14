@@ -241,6 +241,37 @@ def test_player_chapters_recall_old_evidence_and_survive_branch(tmp_path):
                              json={'request_id': uuid4().hex}).json()['data']['state']
         assert client.get('/v1/worlds/' + branch['world_id'] + '/story/chapters').json()['data']['chapters'] == [chapter]
 
+def test_dialogue_can_form_chapter_without_leaking_private_speech(tmp_path):
+    from server.world.tasks import event
+
+    seen = []
+    async def writer(evidence, names):
+        seen.extend(evidence)
+        return {'title': '一次约定', 'narrative': '对方承诺寻找药草，尚未完成。',
+                'source_event_ids': [entry.id for entry in evidence]}
+
+    app = create_app(tmp_path / 'dialogue-book.sqlite3', chapter_writer=writer)
+    with TestClient(app) as client:
+        path, state = new(client)
+        model = app.state.store.state(state['world_id'])
+        player, npc, other = model.actors[:3]
+        visible = event(model, 'npc_speech', 2, npc.id, player.id,
+                        {'text': '我会寻找药草', 'source_type': 'report'}, [], [npc.id, player.id])
+        private = event(model, 'npc_speech', 3, other.id, npc.id,
+                        {'text': '私人消息'}, [], [npc.id, other.id])
+        with app.state.store.connection(write=True) as conn:
+            for value in (visible, private):
+                app.state.store.append_event(conn, model.world_id, value)
+        body = request(state)
+        result = client.post(path + '/advance', json=body).json()
+        assert result['ok']
+        assert [entry.id for entry in seen] == [visible.id]
+        assert result['data']['chapter']['source_event_ids'] == [visible.id]
+        assert client.post(path + '/advance', json=body).json() == result
+        again = client.post(path + '/advance', json=request(result['data']['state'])).json()
+        assert again['data']['chapter'] is None
+
+
 def test_director_timeout_retries_original_evidence_once(tmp_path):
     from server.world.model_gateway import ModelUnavailable
 

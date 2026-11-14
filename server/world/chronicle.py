@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS story_chapters (
     PRIMARY KEY(world_id, seq)
 );
 """
-# Speech alone can be a promise or a rumor. Save its realized consequences instead.
+# Speech is evidence of what was said, never proof that a promise was fulfilled.
 TURNING_POINTS = (
     'hit_applied', 'actor_died', 'player_downed', 'task_succeeded', 'task_failed',
-    'resource_gathered', 'resource_need_fulfilled', 'offer_accepted', 'npc_migrated',
+    'resource_gathered', 'resource_need_fulfilled', 'offer_accepted', 'npc_migrated', 'content_created',
 )
 
 
@@ -36,10 +36,14 @@ def read(connection, world_id, after_seq, limit, *, latest=False):
 def candidates(connection, state):
     rows = connection.execute("""SELECT body FROM events WHERE world_id=?
         AND seq > COALESCE((SELECT MAX(seq) FROM story_chapters WHERE world_id=?), 0)
-        AND json_extract(body, '$.type') IN (SELECT value FROM json_each(?))
+        AND (json_extract(body, '$.type') IN (SELECT value FROM json_each(?))
+             OR (json_extract(body, '$.type') IN ('speech', 'npc_speech')
+                 AND length(trim(json_extract(body, '$.facts.text'))) > 0
+                 AND (json_extract(body, '$.actor_id')=? OR json_extract(body, '$.target_id')=?)))
         AND EXISTS (SELECT 1 FROM json_each(events.body, '$.witness_ids') WHERE value=?)
         ORDER BY seq LIMIT 12""",
-        (state.world_id, state.world_id, json.dumps(TURNING_POINTS), state.player_id))
+        (state.world_id, state.world_id, json.dumps(TURNING_POINTS),
+         state.player_id, state.player_id, state.player_id))
     return [Event.model_validate_json(row[0]) for row in rows]
 
 
