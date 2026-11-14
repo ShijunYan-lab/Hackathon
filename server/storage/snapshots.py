@@ -11,7 +11,8 @@ from server.world.commands import WorldError
 # Add every new world-owned table here; transient model leases deliberately stay out.
 WORLD_TABLES = ('events', 'world_combat_rules', 'attacks', 'attack_hits', 'knowledge_index',
     'event_knowledge', 'npc_memories', 'world_memories', 'story_threads', 'task_effects',
-    'task_reports', 'npc_profiles', 'decisions', 'world_runtime', 'director_runs', 'director_focus')
+    'task_reports', 'npc_profiles', 'decisions', 'world_runtime', 'director_runs', 'director_focus',
+    'wallets', 'offers', 'world_economy_rules', 'resource_needs', 'migration_sources')
 
 
 def digest(value):
@@ -95,6 +96,8 @@ class Snapshots:
             connection.execute('INSERT INTO requests VALUES (?, ?, ?, ?)',
                 (world_id + row['scope'][len(previous_id):], row['id'], row['body'], encode(result)))
         connection.execute('INSERT INTO world_branches VALUES (?, ?)', (world_id, save_id))
+        from server.world.economy import initialize
+        initialize(connection, state)
         return state
 
     def save(self, world_id, body):

@@ -50,10 +50,42 @@ def apply_intent(connection, state, context, intent, region, seq, source_id):
     if intent.action not in context.allowed_actions:
         raise WorldError("ACTION_NOT_SUPPORTED", "意图超出当前可用动作。")
     actor = living_actor(state, context.npc_id)
+    from server.world import economy
+    from shared.world_protocol import OfferRequest
+    if intent.action == 'CRAFT':
+        if set(intent.params) != {'recipe_id'} or intent.target_id not in (None, actor.id):
+            raise WorldError('INVALID_INTENT', 'CRAFT 只需要本人的 recipe_id。')
+        return economy.craft(connection, state, actor.id, intent.params['recipe_id'], seq, [source_id]), []
     known_ids = {value["id"] for value in context.known_entities}
     if intent.target_id not in known_ids:
         raise WorldError("UNKNOWN_TARGET", "NPC 尚不知道这个行动目标。")
+    if intent.action == 'PROPOSE_RELATION':
+        if set(intent.params) != {'org_id', 'stance'}:
+            raise WorldError('INVALID_INTENT', '合作需要 org_id 和 stance。')
+        target = economy.organization(state, intent.target_id)
+        proposal = OfferRequest(request_id=source_id, expected_world_version=state.world_version,
+            actor_id=actor.id, target_id=target.representative_id, kind='relation',
+            org_id=intent.params['org_id'], target_org_id=target.id, stance=intent.params['stance'])
+        return economy.offer(connection, state, proposal, seq, [source_id]), []
+    if intent.action in ('RESPOND_PROPOSAL', 'JOIN_ORG'):
+        if intent.action == 'JOIN_ORG':
+            if set(intent.params) != {'offer_id'}:
+                raise WorldError('INVALID_INTENT', '入会需要 offer_id。')
+            offer_id, org_id = intent.params['offer_id'], intent.target_id
+        else:
+            if intent.params:
+                raise WorldError('INVALID_INTENT', '接受提议不需要额外参数。')
+            offer_id, org_id = intent.target_id, None
+        return economy.accept(connection, state, actor.id, offer_id, seq, org_id), []
+    if intent.action == 'LEAVE_ORG':
+        if intent.params:
+            raise WorldError('INVALID_INTENT', '退出组织不需要额外参数。')
+        return economy.leave(state, actor.id, intent.target_id, seq), []
     if intent.action == "TRANSFER":
+        if set(intent.params) == {'item_id', 'price'}:
+            proposal = OfferRequest(request_id=source_id, expected_world_version=state.world_version,
+                actor_id=actor.id, target_id=intent.target_id, kind='trade', **intent.params)
+            return economy.offer(connection, state, proposal, seq, [source_id]), []
         if set(intent.params) != {"item_id"}:
             raise WorldError("INVALID_INTENT", "TRANSFER 参数需要 item_id。")
         events = apply_item_command(state, "GIVE", {"actor_id": actor.id,

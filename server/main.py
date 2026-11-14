@@ -20,6 +20,8 @@ from server.storage.snapshots import Snapshots
 from server.evaluation.scenario import TransportScenario
 from server.evaluation.service import Evaluations
 from shared.evaluation_protocol import EvaluationCreateRequest, EvaluationRunRequest, EvaluationRollbackRequest
+from shared.world_protocol import OfferRequest, CraftRequest
+from server.world.economy import EconomyAPI
 from server.storage.sqlite import WorldStore, response
 from server.world.commands import WorldError
 from server.world.combat import CombatRules
@@ -57,6 +59,7 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
             "DIRECTOR_CONFIG_PATH", str(ROOT / "server/world/director_config.json")))
         app.state.turns = WorldTurns(app.state.agents, config, director_provider)
         app.state.snapshots = Snapshots(app.state.store)
+        app.state.economy = EconomyAPI(app.state.store)
         app.state.evaluations = Evaluations(app.state.store, app.state.snapshots, app.state.turns,
             transport_scenario or TransportScenario(), region, choose_provider, learn_provider, evaluation_identity)
         async def maintenance():
@@ -139,6 +142,18 @@ def create_app(db_path: str | Path | None = None, regions_path: str | Path | Non
     @app.post('/v1/worlds/{world_id}/saves')
     def save(world_id: str, body: SaveRequest):
         return app.state.snapshots.save(world_id, body)
+
+    @app.get('/v1/worlds/{world_id}/economy')
+    def economy(world_id: str):
+        return app.state.economy.view(world_id)
+
+    @app.post('/v1/worlds/{world_id}/offers')
+    def offer(world_id: str, body: OfferRequest):
+        return app.state.economy.mutate(world_id, body, 'offers')
+
+    @app.post('/v1/worlds/{world_id}/craft')
+    def craft(world_id: str, body: CraftRequest):
+        return app.state.economy.mutate(world_id, body, 'craft')
 
     @app.post('/v1/saves/{save_id}/load')
     def load(save_id: str, body: LoadRequest):

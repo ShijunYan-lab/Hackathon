@@ -102,5 +102,5 @@ def test_errors_and_pagination(client):
         Envelope[dict].model_validate(result.json())
         assert not result.json()["ok"]
     body = checkpoint(created)
-    body.update(kind="LEAVE_ORG", payload={"actor_id": created["data"]["state"]["player_id"], "org_id": "o"})
+    body.update(kind="CHANGE_REGION", payload={"actor_id": created["data"]["state"]["player_id"], "exit_id": "unused"})
     assert client.post(f"/v1/worlds/{world_id}/commands", json=body).json()["error"]["code"] == "ACTION_NOT_SUPPORTED"

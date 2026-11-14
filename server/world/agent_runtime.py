@@ -82,12 +82,20 @@ def build_context(connection, state, npc_id, extra_events=()):
     entities = [value.model_dump(mode="json") for value in [*state.actors, *state.sites]
                 if value.region_id == npc.region_id and math.hypot(
                     value.tile.x - npc.tile.x, value.tile.y - npc.tile.y) <= 6]
+    visible_ids = {value['id'] for value in entities}
+    entities.extend(org.model_dump(mode='json') for org in state.organizations
+                    if org.id in npc.org_ids or org.representative_id in visible_ids)
+    for row in connection.execute('SELECT body FROM offers WHERE world_id=?', (state.world_id,)):
+        value = json.loads(row[0])
+        if npc_id in (value['actor_id'], value['target_id']) and value['status'] == 'pending' and value['expires_tick'] > state.tick:
+            entities.append(value)
     return AgentContext(npc_id=npc.id, world_version=state.world_version,
         identity={"id": npc.id, "name": npc.name, "org_ids": npc.org_ids,
                   "region_id": npc.region_id, "tile": npc.tile.model_dump()},
         goals=stored["goals"], own_inventory=[item for item in state.items if item.owner_id == npc.id],
         known_entities=entities, known_events=[*known, *extra_events], memories=selected_memories,
-        allowed_actions=["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO"],
+        allowed_actions=["WAIT", "MOVE", "GATHER", "TRANSFER", "SHARE_INFO", 'PROPOSE_RELATION',
+                         'RESPOND_PROPOSAL', 'CRAFT', 'JOIN_ORG', 'LEAVE_ORG'],
         policy=stored["policy"], policy_version=stored["version"])
 
 
@@ -177,13 +185,13 @@ class AgentRuntime:
             intent_status = "scheduled" if task_ids else "none"
             events = [accepted, *events]
             rejection = None
-        except WorldError as exc:
+        except (WorldError, ValueError, TypeError) as exc:
             connection.execute("ROLLBACK TO agent_decision")
             connection.execute("RELEASE agent_decision")
             candidate, task_ids, intent_status = state, [], "rejected"
-            rejection = exc.code
+            rejection = getattr(exc, 'code', 'INVALID_INTENT')
             events = [event(state, "decision_rejected", seq, context.npc_id, None,
-                            {"decision_id": decision_id, "reason": exc.code}, [], [context.npc_id])]
+                            {"decision_id": decision_id, "reason": rejection}, [], [context.npc_id])]
         record = {"id": decision_id, "npc_id": context.npc_id, "mode": mode,
                   "decision": decision.model_dump(mode="json"), "intent_status": intent_status,
                   "rejection_code": rejection, "task_ids": task_ids,

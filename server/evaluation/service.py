@@ -117,6 +117,8 @@ class Evaluations:
                 context_key='transport_v1', alpha=self.scenario.alpha,
                 values={'direct': self.scenario.direct_value, 'escort': self.scenario.escort_value}, retrieval_epoch=0)
             connection.execute('UPDATE worlds SET state=? WHERE id=?', (state.model_dump_json(), world_id))
+            connection.execute('UPDATE wallets SET gold=? WHERE world_id=? AND actor_id=?',
+                               (config['gold_initial'], world_id, merchant.id))
             self.turns.runtime(connection, world_id)
             connection.execute('UPDATE world_runtime SET evaluation_active=1 WHERE world_id=?', (world_id,))
             snapshot_id = self.snapshots.write(connection, world_id, 'evaluation S0')
@@ -223,6 +225,14 @@ class Evaluations:
                 events = [started]
                 spent = config['escort_cost'] if choice.strategy == 'escort' else 0
                 if choice.strategy == 'escort':
+                    balance = connection.execute('SELECT gold FROM wallets WHERE world_id=? AND actor_id=?',
+                                                 (state.world_id, merchant.id)).fetchone()[0]
+                    if balance < spent:
+                        raise WorldError('INSUFFICIENT_FUNDS', '商人没有足够金币雇佣护卫。')
+                    connection.execute('UPDATE wallets SET gold=gold-? WHERE world_id=? AND actor_id=?',
+                                       (spent, state.world_id, merchant.id))
+                    connection.execute('UPDATE wallets SET gold=gold+? WHERE world_id=? AND actor_id=?',
+                                       (spent, state.world_id, guard.id))
                     events.append(event(state, 'escort_paid', seq + len(events), merchant.id, guard.id,
                         {'gold_spent': spent, 'merchant_gold': config['gold_initial'] - spent,
                          'guard_gold_received': spent, 'guard_consented': True}, [started.id], [merchant.id, guard.id]))

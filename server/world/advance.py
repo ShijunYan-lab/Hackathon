@@ -10,6 +10,8 @@ from server.world.agent_runtime import build_context
 from server.world.commands import WorldError
 from server.world.director import DirectorConfig, DirectorContext, DirectorResult, WorldDirector
 from server.world.tasks import event
+from server.world import economy
+from server.world.director_execution import execute as execute_director
 
 
 SCHEMA = """
@@ -77,7 +79,7 @@ class WorldTurns:
             config = DirectorConfig.model_validate_json(runtime["config"])
             state.tick += 1
             director_context = DirectorContext(state=state, events=events, **story,
-                                               allowed_proposals=["FOLLOW_UP"])
+                                               allowed_proposals=["FOLLOW_UP", 'RESOURCE_NEED', 'MIGRATION'])
             eligible = sorted((actor for actor in state.actors if actor.kind == "npc"
                                and actor.alive and not actor.task_id and actor.behavior != "attacking"),
                               key=lambda actor: actor.id)
@@ -142,6 +144,12 @@ class WorldTurns:
                         result.decision.source_event_ids if result.decision else [], []))
                 if result.decision:
                     for proposal in result.decision.proposals:
+                        if proposal.kind != 'FOLLOW_UP':
+                            state, outcome, accepted = execute_director(connection, state, proposal,
+                                config, region, seq + len(emitted))
+                            emitted.append(outcome)
+                            applied.append({'event_id': outcome.id, 'accepted': accepted})
+                            continue
                         # Only living NPC targets have an enabled follow-up executor in this milestone.
                         target = next((actor for actor in state.actors if actor.id == proposal.target_id
                                        and actor.alive and actor.kind == "npc"), None)
@@ -168,6 +176,7 @@ class WorldTurns:
                                    (world_id, "director_" + uuid4().hex, json.dumps(record, ensure_ascii=False)))
                 emitted.append(event(state, "world_advanced", seq + len(emitted), None, None,
                     {"reason": body.reason, "director_status": result.status}, body.trigger_event_ids, []))
+                economy.reconcile(connection, state, emitted)
                 state.world_version += 1
                 state = StateView.model_validate(state.model_dump())
                 connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))

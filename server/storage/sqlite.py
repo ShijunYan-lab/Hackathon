@@ -15,6 +15,7 @@ from server.world.combat import CombatRules, settle_hit, validate_hit
 from server.world.items import apply_item_command
 from server.storage import knowledge
 from server.world import tasks
+from server.world import economy
 
 
 def encode(value):
@@ -72,7 +73,10 @@ class WorldStore:
             """)
             connection.executescript(knowledge.SCHEMA)
             connection.executescript(tasks.SCHEMA)
+            connection.executescript(economy.SCHEMA)
         with self.connection(write=True) as connection:
+            for row in connection.execute('SELECT state FROM worlds').fetchall():
+                economy.initialize(connection, StateView.model_validate_json(row[0]))
             for row in connection.execute("SELECT world_id, body FROM events ORDER BY world_id, seq").fetchall():
                 knowledge.record_event(connection, row[0], Event.model_validate_json(row[1]))
 
@@ -162,6 +166,7 @@ class WorldStore:
             connection.execute("INSERT INTO world_combat_rules VALUES (?, ?)",
                                (world_id, self.combat_rules.model_dump_json()))
             self.append_event(connection, world_id, event)
+            economy.initialize(connection, state)
             result = response(body.request_id, state, {"state": state.model_dump(mode="json")})
             self.remember(connection, "new_world", body, result)
             return result
@@ -203,6 +208,11 @@ class WorldStore:
                                    (world_id, body.payload["actor_id"]))
             elif body.kind == "TASK_REPORT":
                 events = tasks.apply_task_report(connection, state, body.payload, json.loads(row["region"]), seq)
+            elif body.kind in ('ACCEPT_OFFER', 'JOIN_ORG'):
+                events = economy.accept(connection, state, body.payload['actor_id'], body.payload['offer_id'], seq,
+                                        body.payload.get('org_id'))
+            elif body.kind == 'LEAVE_ORG':
+                events = economy.leave(state, body.payload['actor_id'], body.payload['org_id'], seq)
             else:
                 raise WorldError("ACTION_NOT_SUPPORTED", "该动作尚未实现。")
             if not events:
@@ -213,6 +223,7 @@ class WorldStore:
                 return result
             if self.command_observer is not None:
                 self.command_observer(connection, state, events)
+            economy.reconcile(connection, state, events)
             state.world_version += 1
             state = StateView.model_validate(state.model_dump())
             connection.execute("UPDATE worlds SET state=? WHERE id=?", (state.model_dump_json(), world_id))

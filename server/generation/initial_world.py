@@ -60,6 +60,9 @@ def initial_world(world_id: str, seed: int, player_name: str, region: dict):
         herb_tile = min(tiles, key=lambda tile: abs(tile.x - spawn.x - 3) + abs(tile.y - spawn.y))
         sites = [SiteView(id=identifier("site", 0), kind="herb", region_id=region["id"],
                           tile=herb_tile, remaining=5)]
+        for index, material in enumerate(('iron', 'wood'), start=1):
+            tile = min(tiles, key=lambda tile: abs(tile.x - spawn.x - 3) + abs(tile.y - spawn.y - index))
+            sites.append(SiteView(id=identifier('site', index), kind=material, region_id=region['id'], tile=tile, remaining=5))
     state = StateView(world_id=world_id, seed=seed, tick=0, world_version=0,
                       player_id=player_id, current_region_id=region["id"], actors=actors,
                       items=weapons, organizations=organizations, relations=[], tasks=[], sites=sites)
