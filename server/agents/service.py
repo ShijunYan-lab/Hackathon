@@ -10,6 +10,7 @@ from shared.protocol import AgentContext, AgentDecision, Intent
 from . import provider
 from .errors import AgentCallFailed
 from .memory import retrieve, validate_proposals
+from .event_reactions import legal_candidates, propose_emergency_reaction
 
 _PROMPT = (Path(__file__).resolve().parents[1] / "prompts" / "npc_decision.txt").read_text(encoding="utf-8")
 _SCHEMA = json.dumps(AgentDecision.model_json_schema(), ensure_ascii=False)
@@ -74,21 +75,16 @@ async def _decide(context: AgentContext, operation: str, event_ids=(), text: str
     if not set(event_ids) <= visible.keys():
         raise AgentCallFailed("触发事件超出该 NPC 的视野")
     relevant = [visible[event_id] for event_id in dict.fromkeys(event_ids)]
+    if operation == "plan":
+        # Physical emergencies require a fast response, not an LLM round trip.
+        emergency = propose_emergency_reaction(context, list(event_ids))
+        if emergency is not None:
+            return emergency
     events = {event.id: event for event in [*context.known_events[-12:], *relevant]}
     memories = retrieve(context, event_ids, text + " " + " ".join(context.goals))
     entities = {entity["id"] for entity in context.known_entities if isinstance(entity.get("id"), str)}
-    candidates = []
-    for candidate in context.identity.get("action_candidates") or []:
-        if not isinstance(candidate, dict):
-            continue
-        try:
-            candidate_intent = Intent.model_validate({
-                key: candidate[key] for key in ("action", "params", "target_id") if key in candidate
-            })
-        except ValueError:
-            continue
-        if candidate_intent.action in context.allowed_actions and candidate_intent.target_id in entities:
-            candidates.append({**candidate, **candidate_intent.model_dump()})
+    candidates = legal_candidates(context)
+    exact_candidate_mode = "action_candidates" in context.identity
     payload = context.model_dump(
         mode="json", exclude={"known_events", "memories", "world_version"},
     )
@@ -126,7 +122,7 @@ async def _decide(context: AgentContext, operation: str, event_ids=(), text: str
                     and candidate.get("target_id") == intent.target_id
                     and candidate.get("params", {}) == intent.params
                 ]
-                if (intent.params or (candidates and intent.action != "WAIT")) and not matching:
+                if (intent.params or (exact_candidate_mode and intent.action != "WAIT")) and not matching:
                     raise ValueError("行动及参数不在 C 给出的候选项中")
                 if operation == "plan":
                     ranked = _rank_strategy(context, intent, candidates, matching)
